@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.4 $
- * $Date: 1996/06/04 10:01:12 $
+ * $Revision: 1.5 $
+ * $Date: 1996/06/06 14:54:50 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.5  1996/06/06 14:54:50  lange
+ * Timer is not reset at startup; debug info changes.
+ *
  * Revision 1.4  1996/06/04 10:01:12  lange
  * Secure against multiple initialisation.
  *
@@ -42,7 +45,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.4 1996/06/04 10:01:12 lange Exp $";
+rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.5 1996/06/06 14:54:50 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -430,7 +433,7 @@ void alm_check (void)
 	    ALM_PRF(3, ("alm_check: alarm %p ignored.\n", alarm_list));
 	 } else {
 	    sem_post(alarm_list->sem_p); /* Post the semaphore */
-	    ALM_PRF(3, ("alm_check: alarm %p posted.\n", alarm_list));
+	    ALM_PRF(2, ("alm_check: alarm %p posted.\n", alarm_list));
 	    
 	    alm_discard(alarm_list);	/* Cancel the active alarm */
 	 }
@@ -519,6 +522,8 @@ void alm_int_handler (int arg)
 int
 alm_init (void)
 {
+   ALM_DBG(5, "Entering alm_init.");
+
    if (!status.init_d) {
       status.init_d = TRUE;
 
@@ -534,10 +539,13 @@ alm_init (void)
       (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
 			 alm_int_handler, NULL);
 
-      *MCC_TIMER4_CNT = 0;	/* Reset and enable the timer */
+				/* Enable the timer */
       *MCC_TIMER4_CR  = TIMER4_CR_CEN;
-   }
    
+      ALM_DBG(1, "alm: initialization done.");
+   }
+
+   ALM_DBG(5, "Leaving alm_init.");
    return(0);
 }
 
@@ -621,7 +629,7 @@ alm_start (
    else
       new_p->is_new = FALSE;
 
-   ALM_PRF(3,("alm_start: new alarm (%p) created: due at %u.\n",
+   ALM_PRF(2,("alm_start: new alarm (%p) created: due at %u.\n",
 	      new_p, new_p->time_due));
    
 				/* Sort it into alarm list */
