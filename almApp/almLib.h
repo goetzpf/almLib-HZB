@@ -2,24 +2,29 @@
 
 /*+**************************************************************************
  *
- * Project:	MultiCAN  -  EPICS-CAN-Connection
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
  *
- * Module:	Timer - Timer and Alarm Clock Support
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
  * File:	alm.h
  *
- * Description:	Library package to implement an alarm clock using the
- *              timer 4 on the mvme162'c MCC chip.
- *		(See also timestamp timer code in vw/src/drv/timer/xxxTS.c)
+ * Description:	Library package to implement a high resolution alarm clock.
+ *		The mv162 implementation uses the timer 4 on the mvme162's
+ *		MCC chip (see alm_mcc.c).
+ *		The vmod60/eltec27 implementation uses three timers of the
+ *		User CIO chip z8536 (see alm_z8536.c).
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.4 $
- * $Date: 1996/10/29 13:16:17 $
+ * $Revision: 1.5 $
+ * $Date: 1997/02/07 16:04:35 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 1.5  1997/02/07 16:04:35  lange
+ * Added counter increment; made alm a module of its own.
+ *
  * Revision 1.4  1996/10/29 13:16:17  lange
  * First version to go into EPICS tree (locally).
  *
@@ -32,9 +37,10 @@
  * Revision 1.1  1996/05/20 11:56:01  lange
  * Changed name (to avoid EPICS name conflicts).
  *
- * Copyright (c) 1996  Berliner Elektronenspeicherring-Gesellschaft
- *                           fuer Synchrotronstrahlung m.b.H.,
- *                                   Berlin, Germany
+ * Copyright (c) 1996, 1997
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
  *
  **************************************************************************-*/
 
@@ -50,12 +56,14 @@ extern "C" {
 #include <vxWorks.h>
 #include <semaphore.h>
 
+#include <debugmsg.h>
+
 
 /*+**************************************************************************
  *		Types
  **************************************************************************-*/
    
-typedef void* alm_ID;
+typedef void* alm_ID;		/* Opaque alarm handle type */
    
 
 /*+**************************************************************************
@@ -70,8 +78,9 @@ alm_get_stamp (void);	     /* Get a time stamp (1 us resolution) */
 
 extern alm_ID
 alm_start (		     /* Set up an alarm */
-   unsigned long delay,		/* Alarm delay in us */
-   sem_t* sem_p			/* Semaphore to post on alarm */
+   unsigned long  delay,	/* Alarm delay in us */
+   sem_t*         sem_p,	/* Semaphore to post on alarm */
+   unsigned long* cnt_p		/* Counter to increment on alarm */
    );
 
 extern void
@@ -82,20 +91,13 @@ alm_cancel (		     /* Cancel a running alarm */
 extern unsigned long
 alm_freq (void);	     /* Return the alarm clock frequency */
 
+extern void		     /* Print alarm info */
+almShow (
+   unsigned char v		/* Verbosity [0..1] */
+   );
 
-
-/*+**************************************************************************
- *		Debug Mode
- **************************************************************************-*/
 
-#ifdef ALM_DEBUG
-
-extern int almSetDebug (char verb);
-
-extern void			/* Print alarms */
-almInfo (unsigned char);
-
-#endif
+DBG_EXTERN(alm)		     /* Debug messages */
 
 
 #ifdef __cplusplus

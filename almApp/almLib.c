@@ -2,22 +2,31 @@
 
 /*+**************************************************************************
  *
- * Project:	MultiCAN  -  EPICS-CAN-Connection
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
  *
- * Module:	Timer - Timer and Alarm Clock Support
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
  * File:	alm.c
  *
- * Description:	Library package to implement an usec alarm clock.
+ * Description:	Library package to implement a high resolution alarm clock.
+ *		Contains the hardware inpependent parts of this library.
+ *		The appropriate lower level driver code is included.
+ *		the target architecture should be cpp-defined:
+ *		mv162    -  for Motorola's MVME162 board family
+ *		vmod60   -  Janz VMOD-60 cpu
+ *		eltec27  -  Eltec Eurocom E27
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.7 $
- * $Date: 1996/10/29 13:11:53 $
+ * $Revision: 1.8 $
+ * $Date: 1997/02/07 16:04:33 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.8  1997/02/07 16:04:33  lange
+ * Added counter increment; made alm a module of its own.
+ *
  * Revision 1.7  1996/10/29 13:11:53  lange
  * First version to go into EPICS tree (locally).
  *
@@ -39,17 +48,15 @@
  * Revision 1.1  1996/05/20 11:54:57  lange
  * Changed name (to avoid EPICS name conflicts).
  *
- * Revision 1.1  1996/04/23 17:31:08  lange
- * *** empty log message ***
- *
- * Copyright (c) 1996  Berliner Elektronenspeicherring-Gesellschaft
- *                           fuer Synchrotronstrahlung m.b.H.,
- *                                   Berlin, Germany
+ * Copyright (c) 1996, 1997
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
  *
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.7 1996/10/29 13:11:53 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 1.8 1997/02/07 16:04:33 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -57,7 +64,7 @@ rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.7 1996/10/29 13:11:53 lange Exp $";
 #include <stdlib.h>
 
 #include <debugmsg.h>
-#include "alm.h"
+#include <alm.h>
 
 #define LIST_CHUNK_SIZE 20	/* Number of elements in alarm list chunk */
 
@@ -75,6 +82,7 @@ typedef struct a_node
    unsigned long  time_due;	/* Alarm time */
    char           is_new;
    sem_t*         sem_p;	/* Semaphore to give */
+   unsigned long* cnt_p;	/* Counter to increment */
    struct a_node* next_p;
    MAGIC2
 } Alarm_Entry;
@@ -109,7 +117,7 @@ static void alm_check (void);
 DBG_IMPLEMENT(alm)		/* Debug stuff */
 
 				/* MOTOROLA MV 162 */
-#if defined(MV162)
+#if defined(mv162)
 
 #define MCC_BASE_ADRS   (0xfff42000)   /* MCchip reg base address */
 #define MCC_INT_VEC_BASE       0x40    /* MCC interrupt vector base number */
@@ -121,7 +129,7 @@ DBG_IMPLEMENT(alm)		/* Debug stuff */
 #include "alm_mcc.c"
 
 				/* JANZ VMOD-60 */
-#elif defined(VMOD60)
+#elif defined(vmod60)
 
 #define	CIO1_BASE_ADRS    (0xfec30000)	/* SYSTEM CIO */
 #define	CIO2_BASE_ADRS    (0xfec10000)	/* USER CIO */
@@ -143,7 +151,7 @@ DBG_IMPLEMENT(alm)		/* Debug stuff */
 #include "alm_z8536.c"
 
 				/* ELTEC E27 */
-#elif defined(ELTEC27)
+#elif defined(eltec27)
 
 #define	CIO1_BASE_ADRS    (0xfec30000)	/* SYSTEM CIO */
 #define	CIO2_BASE_ADRS    (0xfec10000)	/* USER CIO */
@@ -246,7 +254,8 @@ void alm_discard (Alarm_Entry* id)
  *
  * Function:	alm_check
  *
- * Description:	Checks the alarm list for alarms due and posts them.
+ * Description:	Checks the alarm list for alarms due and posts semaphores /
+ *		increments counters.
  * 		Sets up the timer for next pending alarm.
  *              Mutex must be locked when using this function.
  *
@@ -282,6 +291,8 @@ void alm_check (void)
 	    PRF(3, ("alm_check: alarm %p ignored.\n", alarm_list));
 	 } else {
 	    sem_post(alarm_list->sem_p); /* Post the semaphore */
+	    if (alarm_list->cnt_p)       /* Increment the counter */
+	       (*(alarm_list->cnt_p))++;
 	    PRF(2, ("alm_check: alarm %p posted.\n", alarm_list));
 	    
 	    alm_discard(alarm_list);	/* Cancel the active alarm */
@@ -317,8 +328,8 @@ void alm_check (void)
  *              semaphore will be posted by the alarm clock.
  *              Must not be called from interrupt context.
  *
- * Arg(s) In:	delay       -  Alarm delay in us.
- *              user_sem_p  -  Semaphore to be posted.
+ * Arg(s) In:	delay  -  Alarm delay in us.
+ *              sem_p  -  Semaphore to be posted.
  *
  * Arg(s) Out:	None.
  *
@@ -329,8 +340,9 @@ void alm_check (void)
 
 alm_ID
 alm_start (
-   unsigned long delay,
-   sem_t* user_sem_p
+   unsigned long  delay,
+   sem_t*         sem_p,
+   unsigned long* cnt_p
    )
 {
    register Alarm_Entry* last_p;
@@ -380,7 +392,8 @@ alm_start (
    ts_due = ts_now + (delay > INT_SUBTRACT ? (delay - INT_SUBTRACT) : 0);
 
    new_p->time_due = ts_due;	/* Fill the alarm entry */
-   new_p->sem_p    = user_sem_p;
+   new_p->sem_p    = sem_p;
+   new_p->cnt_p    = cnt_p;
    new_p->next_p   = NULL;
    if ((ts_due - last_checked <  ts_now - last_checked) &&
        (ts_due - last_checked >= alarm_list->time_due - last_checked))
@@ -415,9 +428,8 @@ alm_start (
       moved = FALSE;
 				/* Sweep through alarm list */
       while (ts_due > (act_p->time_due - ts_ref)) {
-	 moved  = TRUE;
-	 last_p = act_p;	     /* Go to next element */
-	 act_p  = act_p->next_p;
+	 moved = TRUE;
+	 act_p = (last_p = act_p)->next_p; /* Go to next element */
 	 if (act_p == alarm_list) break;
       }
 
@@ -542,10 +554,9 @@ alm_cancel (alm_ID id)
 }
 
 
-#ifdef DEBUGMSG
 /*+**************************************************************************
  *
- * Function:	almInfo
+ * Function:	almShow
  *
  * Description:	Prints debug info about alarms.
  *              Must not be called from interrupt context.
@@ -560,7 +571,7 @@ alm_cancel (alm_ID id)
  *
  **************************************************************************-*/
 
-void almInfo (unsigned char verb)
+void almShow (unsigned char verb)
 {
    register Alarm_Entry* act_p;
    unsigned short i = 0;
@@ -592,8 +603,8 @@ void almInfo (unsigned char verb)
 	 i++;
 
 	 if ((i-1) % 25 == 0)
-	    printf("No N Time due   AlarmID  Semaphore\n"
-		   "----------------------------------\n");
+	    printf("No N Time due   AlarmID  Semaphore  Counter\n"
+		   "-------------------------------------------\n");
 
 	 printf("%2d ", i);
 
@@ -602,11 +613,17 @@ void almInfo (unsigned char verb)
 	 else
 	    printf("  ");
 	 
-	 printf("%10u %p %p\n",
+	 printf("%10u %p %p ",
 		act_p->time_due,
 		act_p,
 		act_p->sem_p
 	    );
+
+	 if (act_p->cnt_p)
+	    printf("%8x\n", *(act_p->cnt_p));
+	 else
+	    printf(" ------\n");
+
 	 act_p = act_p->next_p;
       } while (act_p != alarm_list);
    
@@ -628,4 +645,3 @@ void almInfo (unsigned char verb)
 
    UNLOCK(alm_lock);
 }
-#endif /* #ifdef DEBUGMSG */

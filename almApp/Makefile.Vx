@@ -1,0 +1,23 @@
+# Makefile.Vx
+TOP = ../..
+include $(TOP)/config/CONFIG_APP
+INSTALL_LOCATION = $(TOP)
+#-----------------------------------------------
+#  ADD MACRO DEFINITIONS AFTER THIS LINE
+
+USR_CFLAGS += -D$(T_A)
+
+SRCS.c += ../alm.c
+
+USR_INCLUDES += -I$(INSTALL_LOCATION)/include
+
+INC += alm.h
+
+PROD += alm.o
+TARGETS += alm_test.o
+
+include $(TOP)/config/RULES.Vx
+#-----------------------------------------------
+#  ADD RULES AFTER THIS LINE
+
+alm_test.o: alm.o ../alm_test.c

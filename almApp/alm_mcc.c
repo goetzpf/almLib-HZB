@@ -2,13 +2,13 @@
 
 /*+**************************************************************************
  *
- * Project:	MultiCAN  -  EPICS-CAN-Connection
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
  *
- * Module:	Timer - Timer and Alarm Clock Support
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
- * File:	alm_mcc.c
+ * File:	alm_mcc.c  -  (included by alm.c)
  *
- * Description:	Library package to implement an usec alarm clock.
+ * Description:	Library package to implement a high resolution alarm clock.
  *              System dependent part - Motorola MCCchip
  *              On the MOTOROLA MVME 162/167:
  *                Uses the timer 4 on the mvme16x's MCC chip. (See also 
@@ -16,19 +16,22 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.1 $
- * $Date: 1996/10/29 13:11:53 $
+ * $Revision: 1.2 $
+ * $Date: 1997/02/07 16:04:36 $
  *
  * $Author: lange $
  *
  * $Log: alm_mcc.c,v $
+ * Revision 1.2  1997/02/07 16:04:36  lange
+ * Added counter increment; made alm a module of its own.
+ *
  * Revision 1.1  1996/10/29 13:11:53  lange
  * First version to go into EPICS tree (locally).
  *
- *
- * Copyright (c) 1996  Berliner Elektronenspeicherring-Gesellschaft
- *                           fuer Synchrotronstrahlung m.b.H.,
- *                                   Berlin, Germany
+ * Copyright (c) 1996, 1997
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
  *
  **************************************************************************-*/
 
@@ -39,8 +42,7 @@
 #include <drv/multi/mcchip.h>
 
 #include <debugmsg.h>
-
-#include "alm.h"
+#include <alm.h>
 
 
 /*+**************************************************************************
@@ -230,7 +232,7 @@ void alm_int_handler (int arg)
 int alm_init (void)
 {
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: alm_mcc.c,v 1.1 1996/10/29 13:11:53 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 1.2 1997/02/07 16:04:36 lange Exp $";
 
    DBG(5, "Entering alm_init.");
 

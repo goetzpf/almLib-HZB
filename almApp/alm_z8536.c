@@ -2,13 +2,13 @@
 
 /*+**************************************************************************
  *
- * Project:	MultiCAN  -  EPICS-CAN-Connection
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
  *
- * Module:	Timer - Timer and Alarm Clock Support
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
- * File:	alm_z8536.c
+ * File:	alm_z8536.c  -  (included by alm.c)
  *
- * Description:	Library package to implement an usec alarm clock.
+ * Description:	Library package to implement a high resolution alarm clock.
  *              System dependent part - Zilog z8536 counter/timer/port
  *
  *              Uses timer 1, 2 & 3 on the User CIO. (See
@@ -19,19 +19,22 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.1 $
- * $Date: 1996/10/29 13:11:54 $
+ * $Revision: 1.2 $
+ * $Date: 1997/02/07 16:04:47 $
  *
  * $Author: lange $
  *
  * $Log: alm_z8536.c,v $
+ * Revision 1.2  1997/02/07 16:04:47  lange
+ * Added counter increment; made alm a module of its own.
+ *
  * Revision 1.1  1996/10/29 13:11:54  lange
  * First version to go into EPICS tree (locally).
  *
- *
- * Copyright (c) 1996  Berliner Elektronenspeicherring-Gesellschaft
- *                           fuer Synchrotronstrahlung m.b.H.,
- *                                   Berlin, Germany
+ * Copyright (c) 1996, 1997
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
  *
  **************************************************************************-*/
 
@@ -44,7 +47,7 @@
 #include <drv/multi/z8536.h>
 
 #include <debugmsg.h>
-#include "alm.h"
+#include <alm.h>
 
 extern void logMsg(char*, ...);
 
@@ -721,7 +724,7 @@ int
 alm_init (void)
 {
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: alm_z8536.c,v 1.1 1996/10/29 13:11:54 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 1.2 1997/02/07 16:04:47 lange Exp $";
 
    register int lock_key;
    register unsigned char tmp;    /* Dummy */
