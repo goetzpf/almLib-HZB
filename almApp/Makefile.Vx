@@ -14,7 +14,7 @@ endif
 
 USR_CFLAGS += -D$(T_A)
 
-INC = almLib.h
+INC += almLib.h
 
 DBDINSTALL = almLib.LIBOBJS almLib.LDOBJS
 
