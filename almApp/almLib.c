@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.5 2004/03/29 13:29:14 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.6 2004/04/02 14:18:43 luchini Exp $";
 
 
 #include <vxWorks.h>
@@ -360,7 +360,7 @@ alm_start (
 
    lock_key = intLock();
    status.in_use = TRUE;
-   lock_key = intLock();
+   intUnlock(lock_key);
 				/* Is the free list empty? */
    if (free_list == NULL) {
       DBG(4, "alm_start: free list is empty.");
@@ -700,6 +700,9 @@ void almShow (unsigned char verb)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.6  2004/04/02 14:18:43  luchini
+ * fixed typo, intLock to intUnlock in alm_start()
+ *
  * Revision 2.5  2004/03/29 13:29:14  lange
  * Bugfix: Guard bitfield operations
  *
