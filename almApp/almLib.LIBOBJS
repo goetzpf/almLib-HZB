@@ -1,2 +1,2 @@
 # Alm High Resolution Alarm Library
-LIBOBJS += $(MV162_BIN)/almLib
+LIBOBJS += $(ALARM_BIN)/almLib
