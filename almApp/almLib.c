@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.3 1999/09/08 17:40:22 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.4 1999/09/08 18:03:10 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -580,7 +580,7 @@ void almShow (unsigned char verb)
 
    printf("Alarm Info\n"
 	  "----------\n"
-	  "Last check was at %u; time now is %u; alarm ",
+	  "Last check was at %lu; time now is %lu; alarm ",
 	  last_checked,
 	  alm_get_stamp()
       );
@@ -615,21 +615,21 @@ void almShow (unsigned char verb)
 	 else
 	    printf("  ");
 	 
-	 printf("%10u %p %p ",
+	 printf("%10lu %p %p ",
 		act_p->time_due,
 		act_p,
 		act_p->sem_p
 	    );
 
 	 if (act_p->cnt_p)
-	    printf("%8x\n", *(act_p->cnt_p));
+	    printf("%8lx\n", *(act_p->cnt_p));
 	 else
 	    printf(" ------\n");
 
 	 act_p = act_p->next_p;
       } while (act_p != alarm_list);
    
-   printf("%d used out of %d allocated alarm entries (%d bytes).\n",
+   printf("%d used out of %d allocated alarm entries (%ld bytes).\n",
 	  i,
 	  status.entries,
 	  status.entries * sizeof(Alarm_Entry)
@@ -672,6 +672,9 @@ void almShow (unsigned char verb)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.4  1999/09/08 18:03:10  lange
+ * Fixed more Tornado101 warnings
+ *
  * Revision 2.3  1999/09/08 17:40:22  lange
  * Fixed Tornado101 warnings
  *

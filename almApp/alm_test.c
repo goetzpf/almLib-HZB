@@ -13,8 +13,8 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.2 $
- * $Date: 1999/09/08 17:40:22 $
+ * $Revision: 2.3 $
+ * $Date: 1999/09/08 18:03:10 $
  *
  * $Author: lange $
  *
@@ -51,7 +51,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.2 1999/09/08 17:40:22 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.3 1999/09/08 18:03:10 lange Exp $";
 
 
 #include <semaphore.h>
@@ -77,17 +77,17 @@ typedef struct
 
 static Info_Entry info[10] =
 {
-        10ul, LONG_MIN,LONG_MAX,0,0,
-       100ul, LONG_MIN,LONG_MAX,0,0,
-       200ul, LONG_MIN,LONG_MAX,0,0,
-       500ul, LONG_MIN,LONG_MAX,0,0,
-      1000ul, LONG_MIN,LONG_MAX,0,0,
+ {       10ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {      100ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {      200ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {      500ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {     1000ul, LONG_MIN,LONG_MAX,0,0 } ,
 
-      2000ul, LONG_MIN,LONG_MAX,0,0,
-      5000ul, LONG_MIN,LONG_MAX,0,0,
-     10000ul, LONG_MIN,LONG_MAX,0,0,
-    100000ul, LONG_MIN,LONG_MAX,0,0,
-   1000000ul, LONG_MIN,LONG_MAX,0,0
+ {     2000ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {     5000ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {    10000ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {   100000ul, LONG_MIN,LONG_MAX,0,0 } ,
+ {  1000000ul, LONG_MIN,LONG_MAX,0,0 }
 };
 
 
@@ -269,7 +269,7 @@ aInfo (void)
    sem_wait(&info_lock);
 
    for (i = 0; i < 10; i++) {
-      printf("%7u %5u %11ld %9.2f %11ld\n",
+      printf("%7lu %5u %11ld %9.2f %11ld\n",
 	     info[i].delay,
 	     info[i].cnt,
 	     info[i].min,
@@ -325,6 +325,9 @@ aSet (unsigned long delay)
  * Author(s):	Ralph Lange
  *
  * $Log: alm_test.c,v $
+ * Revision 2.3  1999/09/08 18:03:10  lange
+ * Fixed more Tornado101 warnings
+ *
  * Revision 2.2  1999/09/08 17:40:22  lange
  * Fixed Tornado101 warnings
  *
