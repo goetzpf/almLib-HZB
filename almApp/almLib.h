@@ -16,10 +16,10 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.3 $
- * $Date: 1999/09/08 17:40:22 $
+ * $Revision: 2.4 $
+ * $Date: 2004/06/22 09:24:14 $
  *
- * $Author: lange $
+ * $Author: luchini $
  *
  * Revision log at end of file
  *
@@ -64,7 +64,6 @@ extern "C" {
 
 #include <vxWorks.h>
 #include <semaphore.h>
-
 #include <debugmsg.h>
 
 
@@ -74,17 +73,15 @@ extern "C" {
    
 typedef void* alm_ID;		/* Opaque alarm handle type */
    
-
 /*+**************************************************************************
  *		Functions
  **************************************************************************-*/
 
 extern long
-almInit (void);		     /* Initialize library */
-
-extern unsigned long
-alm_get_stamp (void);	     /* Get a time stamp (1 us resolution) */
-
+almInit (                    /* Initialize the alarm library. */
+   void
+   );
+ 
 extern alm_ID
 alm_start (		     /* Set up an alarm */
    unsigned long  delay,	/* Alarm delay in us */
@@ -93,22 +90,36 @@ alm_start (		     /* Set up an alarm */
    );
 
 extern void
+alm_check (                  /* Checks alarm list for alarms */
+   void
+   );
+
+extern void
 alm_cancel (		     /* Cancel a running alarm */
    alm_ID id			/* ID of alarm to cancel */
    );
 
-extern unsigned long
-alm_freq (void);	     /* Return the alarm clock frequency */
-
+extern void                  /* Interrupt service routine     */
+alm_int_handler (
+   int arg
+   );
+    
 extern void		     /* Print alarm info */
 almShow (
    unsigned char v		/* Verbosity [0..1] */
    );
 
+extern void                 /* Print alarm info from alm_status global */
+almStatus (
+   unsigned char v             /* Verbosity [0..1] */
+    );
+    
+extern long             /* Set the interrupt priority level global */
+alm_intLevelSet(
+    int level                  /* Interrupt priority level [0..7] */
+    );
 
 DBG_EXTERN(alm)		     /* Debug messages */
-
-
 #ifdef __cplusplus
 }
 #endif
@@ -132,6 +143,9 @@ DBG_EXTERN(alm)		     /* Debug messages */
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.h,v $
+ * Revision 2.4  2004/06/22 09:24:14  luchini
+ * moved bsp specific prototypes to alm.h
+ *
  * Revision 2.3  1999/09/08 17:40:22  lange
  * Fixed Tornado101 warnings
  *
