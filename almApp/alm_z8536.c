@@ -19,12 +19,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.0 $
- * $Date: 1997/02/07 16:30:51 $
+ * $Revision: 2.1 $
+ * $Date: 1997/07/31 17:49:50 $
  *
  * $Author: lange $
  *
  * $Log: alm_z8536.c,v $
+ * Revision 2.1  1997/07/31 17:49:50  lange
+ * alm_init -> almInit.
+ *
  * Revision 2.0  1997/02/07 16:30:51  lange
  * Changed interface; alm is standalone module now.
  *
@@ -71,7 +74,7 @@ static unsigned long ref_stamp = 0; /* Reference time stamp */
 unsigned long alm_get_stamp (void);
 
 /* Initialize the alarm library */
-int alm_init (void);
+long almInit (void);
 
 /* Return the frequency of the alarm clock */
 unsigned long alm_freq (void)
@@ -709,7 +712,7 @@ void alm_int_handler (int arg)
 
 /*+**************************************************************************
  *
- * Function:	alm_init
+ * Function:	almInit
  *
  * Description:	Initialize the alarm library.
  *
@@ -723,16 +726,15 @@ void alm_int_handler (int arg)
  *
  **************************************************************************-*/
 
-int
-alm_init (void)
+long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.0 1997/02/07 16:30:51 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.1 1997/07/31 17:49:50 lange Exp $";
 
    register int lock_key;
    register unsigned char tmp;    /* Dummy */
 
-   DBG(5, "Entering alm_init.");
+   DBG(5, "Entering almInit.");
 
    if (!status.init_d) {
       status.init_d = TRUE;
@@ -831,7 +833,7 @@ rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.0 1997/02/07 16:30:51 lange Exp $";
 
       DBG(1, "alm: initialization done.");
    }
-   DBG(5, "Leaving alm_init.");
+   DBG(5, "Leaving almInit.");
    return(0);
 }
 
