@@ -16,14 +16,22 @@
  *		vmod60   -  Janz VMOD-60 cpu
  *		eltec27  -  Eltec Eurocom E27
  *
+ * To Do:
+ *		- Should auto-configure at almInit() instead of setting
+ *		  fixed values after querying the cpu speed.
+ *              - Should use VME2chip to work on mv167
+ *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.0 $
- * $Date: 1997/02/07 16:30:46 $
+ * $Revision: 2.1 $
+ * $Date: 1997/07/31 17:50:23 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 2.1  1997/07/31 17:50:23  lange
+ * alm_init -> almInit, reflects mv162 cpu speed.
+ *
  * Revision 2.0  1997/02/07 16:30:46  lange
  * Changed interface; alm is standalone module now.
  *
@@ -59,7 +67,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.0 1997/02/07 16:30:46 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.1 1997/07/31 17:50:23 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -126,8 +134,9 @@ DBG_IMPLEMENT(alm)		/* Debug stuff */
 #define MCC_INT_VEC_BASE       0x40    /* MCC interrupt vector base number */
 #define ALARMCLOCK_LEVEL          1    /* Alarm clock's interrupt level */
 
-#define INT_INHIBIT  25ul	/* Minimum interrupt delay */
-#define INT_SUBTRACT 42ul	/* Subtracted from every delay */
+				/* mv162 version uses variables */
+#define INT_INHIBIT int_inhibit
+#define INT_SUBTRACT int_subtract
 
 #include "alm_mcc.c"
 
@@ -148,7 +157,7 @@ DBG_IMPLEMENT(alm)		/* Debug stuff */
 
 #define ZERO 0
 
-#define INT_INHIBIT  50ul	/* Minimum interrupt delay */
+#define INT_INHIBIT  100ul	/* Minimum interrupt delay */
 #define INT_SUBTRACT 0ul	/* Subtracted from every delay */
 
 #include "alm_z8536.c"
@@ -364,7 +373,8 @@ alm_start (
    if (free_list == NULL) {
       DBG(4, "alm_start: free list is empty.");
 				/* Get a new chunk of nodes */
-      free_list = (Alarm_Entry*) calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
+      free_list = (Alarm_Entry*)
+	 calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
 
       if (free_list == NULL) {	/* calloc error */
 	 status.in_use = FALSE;

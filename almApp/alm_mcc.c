@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.0 $
- * $Date: 1997/02/07 16:30:49 $
+ * $Revision: 2.1 $
+ * $Date: 1997/07/31 17:50:25 $
  *
  * $Author: lange $
  *
  * $Log: alm_mcc.c,v $
+ * Revision 2.1  1997/07/31 17:50:25  lange
+ * alm_init -> almInit, reflects mv162 cpu speed.
+ *
  * Revision 2.0  1997/02/07 16:30:49  lange
  * Changed interface; alm is standalone module now.
  *
@@ -47,6 +50,19 @@
 #include <debugmsg.h>
 #include <alm.h>
 
+				/* Definitions for 25 MHz CPU */
+#define INT_INHIBIT_25  25ul	/* Minimum interrupt delay */
+#define INT_SUBTRACT_25 46ul	/* Subtracted from every delay */
+
+				/* Definitions for 32 MHz CPU */
+#define INT_INHIBIT_32 20ul	/* Minimum interrupt delay */
+#define INT_SUBTRACT_32 34ul	/* Subtracted from every delay */
+
+				/* Magic Words */
+#define MAGIC_P  (unsigned long*)(0xfffc1f28)	/* Address of Magic Word */
+#define MAGIC_25 0x32353030ul	/* ASCII 2500 */
+#define MAGIC_32 0x33323030ul	/* ASCII 3200 */
+
 
 /*+**************************************************************************
  *		Global Functions implemented here
@@ -57,10 +73,10 @@
 unsigned long alm_get_stamp (void);
 
 /* Initialize the alarm library */
-int alm_init (void);
+long almInit (void);
 
 /* Return the frequency of the alarm clock */
-unsigned long alm_freq (void)
+unsigned long alm_freq (void);
 #endif
 
 /*+**************************************************************************
@@ -75,6 +91,13 @@ static void alm_disable (void);
 
 /* The alarm counter's interrupt handler */
 static void alm_int_handler (int arg);
+
+/*+**************************************************************************
+ *		Globals
+ **************************************************************************-*/
+
+static unsigned long int_inhibit;
+static unsigned long int_subtract;
 
 
 /*+**************************************************************************
@@ -218,7 +241,7 @@ void alm_int_handler (int arg)
 
 /*+**************************************************************************
  *
- * Function:	alm_init
+ * Function:	almInit
  *
  * Description:	Initialize the alarm library.
  *
@@ -227,17 +250,16 @@ void alm_int_handler (int arg)
  * Arg(s) Out:	None.
  *
  * Return(s):	Error code:
- *                           0  -  OK.
- *                          -1  -  Error.
+ *                           OK or ERROR
  *
  **************************************************************************-*/
 
-int alm_init (void)
+long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.0 1997/02/07 16:30:49 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.1 1997/07/31 17:50:25 lange Exp $";
 
-   DBG(5, "Entering alm_init.");
+   DBG(5, "Entering almInit.");
 
    if (!status.init_d) {
       status.init_d = TRUE;
@@ -245,7 +267,7 @@ rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.0 1997/02/07 16:30:49 lange Exp $";
       DBG_INIT;
 
       if (INIT_LOCK(alm_lock)) { /* Init mutex semaphore */
-	 return(-1);
+	 return ERROR;
       }
 				/* Connect interrupt handler */
       (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
@@ -254,11 +276,23 @@ rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.0 1997/02/07 16:30:49 lange Exp $";
 				/* Enable the timer */
       *MCC_TIMER4_CR  = TIMER4_CR_CEN;
 
+				/* Check for CPU speed */
+      if (*(MAGIC_P) == MAGIC_25) {
+	 int_inhibit  = INT_INHIBIT_25;
+	 int_subtract = INT_SUBTRACT_25;
+      }
+      else if (*(MAGIC_P) == MAGIC_32) {
+	 int_inhibit  = INT_INHIBIT_32;
+	 int_subtract = INT_SUBTRACT_32;
+      } else {
+	 DBG(1, "alm: Illegal CPU speed.");
+	 return ERROR;
+      }
       DBG(1, "alm: initialization done.");
    }
 
-   DBG(5, "Leaving alm_init.");
-   return(0);
+   DBG(5, "Leaving almInit.");
+   return OK;
 }
 
 
