@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.3 $
- * $Date: 1996/06/03 20:18:13 $
+ * $Revision: 1.4 $
+ * $Date: 1996/06/04 10:01:12 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.4  1996/06/04 10:01:12  lange
+ * Secure against multiple initialisation.
+ *
  * Revision 1.3  1996/06/03 20:18:13  lange
  * Alarms seem to work now (multiple bugs fixed).
  *
@@ -39,7 +42,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.3 1996/06/03 20:18:13 lange Exp $";
+rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.4 1996/06/04 10:01:12 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -191,11 +194,12 @@ typedef struct a_node
 
 static struct 
 {
+   unsigned int init_d  : 1;	/* Initialized flag */
    unsigned int running : 1;	/* Counter running flag */
    unsigned int in_use  : 1;	/* Lists in use flag */
    unsigned int woke_up : 1;	/* Int handler was called flag */
-   unsigned int entries : 8;	/* Used Alam_Entries */
-} status = {FALSE, FALSE, FALSE, 0};
+   unsigned int entries : 8;	/* Used Alarm_Entries */
+} status = {FALSE, FALSE, FALSE, FALSE, 0};
 
 static unsigned long last_checked; /* Time of last alarm list check */
 
@@ -515,23 +519,25 @@ void alm_int_handler (int arg)
 int
 alm_init (void)
 {
+   if (!status.init_d) {
+      status.init_d = TRUE;
+
 #ifdef ALM_DEBUG
-   if (INIT_LOCK(alm_dbg_lock)) { /* Init debug semaphore */
-      return(-1);
-   }
+      if (INIT_LOCK(alm_dbg_lock)) { /* Init debug semaphore */
+	 return(-1);
+      }
 #endif
-
-   if (INIT_LOCK(alm_lock)) {	/* Init mutex semaphore */
-      return(-1);
-   }
+      if (INIT_LOCK(alm_lock)) { /* Init mutex semaphore */
+	 return(-1);
+      }
 				/* Connect interrupt handler */
-   (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
-		      alm_int_handler, NULL);
+      (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
+			 alm_int_handler, NULL);
 
-   *MCC_TIMER4_CNT = 0;		/* Reset the timer */
-				/* Enable the timer */
-   *MCC_TIMER4_CR  = TIMER4_CR_CEN;
-
+      *MCC_TIMER4_CNT = 0;	/* Reset and enable the timer */
+      *MCC_TIMER4_CR  = TIMER4_CR_CEN;
+   }
+   
    return(0);
 }
 
