@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.0 $
- * $Date: 1997/02/07 16:30:48 $
+ * $Revision: 2.1 $
+ * $Date: 1997/07/31 17:47:33 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 2.1  1997/07/31 17:47:33  lange
+ * Changed alm_init to almInit.
+ *
  * Revision 2.0  1997/02/07 16:30:48  lange
  * Changed interface; alm is standalone module now.
  *
@@ -73,8 +76,8 @@ typedef void* alm_ID;		/* Opaque alarm handle type */
  *		Functions
  **************************************************************************-*/
 
-extern int
-alm_init (void);	     /* Initialize library */
+extern long
+almInit (void);			/* Initialize library */
 
 extern unsigned long
 alm_get_stamp (void);	     /* Get a time stamp (1 us resolution) */
