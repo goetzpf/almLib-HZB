@@ -16,8 +16,8 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.3 $
- * $Date: 1999/09/08 17:40:22 $
+ * $Revision: 2.4 $
+ * $Date: 2004/03/29 13:29:14 $
  *
  * $Author: lange $
  *
@@ -69,6 +69,10 @@
 				/* Definitions for 32 MHz CPU */
 #define INT_INHIBIT_32 20ul	/* Minimum interrupt delay */
 #define INT_SUBTRACT_32 34ul	/* Subtracted from every delay */
+
+                                /* Safe values (prelimininary patch) */
+#define INT_INHIBIT_SAFE 50ul
+#define INT_SUBTRACT_SAFE 0ul
 
 				/* Magic Words */
 #define MAGIC_P  (unsigned long*)(0xfffc1f28)	/* Address of Magic Word */
@@ -154,9 +158,9 @@ void alm_setup (unsigned long delay)
 
    DBG(5, "Entering alm_setup.");
 
-   status.running = TRUE;	/* Set running flag */
-
    lock_key = intLock();	/* Lock interrupts */
+
+   status.running = TRUE;	/* Set running flag */
 
 				/* Set the timer compare value */
    *MCC_TIMER4_CMP = *MCC_TIMER4_CNT + 
@@ -200,9 +204,10 @@ void alm_disable (void)
 
       *MCC_T4_IRQ_CR = 0;	/* Disable interrupts */
 
+      status.running = FALSE;
+
       intUnlock(lock_key);	/* Unlock interrupts */
 
-      status.running = FALSE;
       DBG(4, "alm_disable: counter interrupts disabled.");
    }
 
@@ -269,7 +274,7 @@ void alm_int_handler (int arg)
 long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.3 1999/09/08 17:40:22 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.4 2004/03/29 13:29:14 lange Exp $";
 
    DBG(5, "Entering almInit.");
 
@@ -300,6 +305,11 @@ rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.3 1999/09/08 17:40:22 lange Exp $";
 	 DBG(1, "alm: Illegal CPU speed.");
 	 return ERROR;
       }
+
+/* ??? Secure PATCH for T2.0.2 - should be replaced by something real !!! */
+	 int_inhibit  = INT_INHIBIT_SAFE;
+	 int_subtract = INT_SUBTRACT_SAFE;
+
       DBG(1, "alm: initialization done.");
    }
 
@@ -358,6 +368,9 @@ unsigned long alm_freq (void)
  * Author(s):	Ralph Lange
  *
  * $Log: alm_mcc.c,v $
+ * Revision 2.4  2004/03/29 13:29:14  lange
+ * Bugfix: Guard bitfield operations
+ *
  * Revision 2.3  1999/09/08 17:40:22  lange
  * Fixed Tornado101 warnings
  *

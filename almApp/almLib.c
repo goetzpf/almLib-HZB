@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.4 1999/09/08 18:03:10 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.5 2004/03/29 13:29:14 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -352,12 +352,15 @@ alm_start (
    unsigned long ts_due, ts_now, ts_ref;
    unsigned long i;
    char moved;
+   register int lock_key;
 
    DBG(5, "Entering alm_start.");
 
    LOCK(alm_lock);
-   status.in_use = TRUE;
 
+   lock_key = intLock();
+   status.in_use = TRUE;
+   lock_key = intLock();
 				/* Is the free list empty? */
    if (free_list == NULL) {
       DBG(4, "alm_start: free list is empty.");
@@ -366,13 +369,17 @@ alm_start (
 	 calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
 
       if (free_list == NULL) {	/* calloc error */
+         lock_key = intLock();
 	 status.in_use = FALSE;
+         intUnlock(lock_key);
 	 UNLOCK(alm_lock);
 	 DBG(5, "Leaving alm_start.");
 	 return(NULL);
       }
 				/* and initialize it */
+      lock_key = intLock();
       status.entries += LIST_CHUNK_SIZE;
+      intUnlock(lock_key);
 
       for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
 	 free_list[i].next_p = &free_list[i+1];
@@ -463,13 +470,17 @@ alm_start (
    }
 
    do {				/* The timer interrupted */
+      lock_key = intLock();
       status.in_use  = TRUE;
       status.woke_up = FALSE;
+      intUnlock(lock_key);
 
       DBG(3, "alm_start: checking for alarms due.");
       alm_check();		/* Check for and post alarms due */
 
+      lock_key = intLock();
       status.in_use  = FALSE;
+      intUnlock(lock_key);
    } while (status.woke_up);
 
    UNLOCK(alm_lock);
@@ -501,17 +512,23 @@ alm_cancel (alm_ID id)
 {
    register Alarm_Entry* act_p;
    unsigned long ts_diff;
+   register int lock_key;
 
    DBG(5, "Entering alm_cancel.");
 
    LOCK(alm_lock);
+
+   lock_key = intLock();
    status.in_use = TRUE;
+   intUnlock(lock_key);
 
    act_p  = alarm_list;
 
    if (!act_p) {
       DBG(3, "alm_cancel: Empty alarm list.");
+      lock_key = intLock();
       status.in_use  = FALSE;
+      intUnlock(lock_key);
       UNLOCK(alm_lock);
       DBG(5, "Leaving alm_cancel.");
       return;		/* Return on empty alarm list */
@@ -542,13 +559,17 @@ alm_cancel (alm_ID id)
    }
 
    do {				/* The timer interrupted */
+      lock_key = intLock();
       status.in_use  = TRUE;
       status.woke_up = FALSE;
+      intUnlock(lock_key);
 
       DBG(3, "alm_cancel: int handler was called.");
       alm_check();		/* Check for and post alarms due */
 
+      lock_key = intLock();
       status.in_use  = FALSE;
+      intUnlock(lock_key);
    } while (status.woke_up);
 
    UNLOCK(alm_lock);
@@ -577,6 +598,7 @@ void almShow (unsigned char verb)
 {
    register Alarm_Entry* act_p;
    unsigned short i = 0;
+   register int lock_key;
 
    printf("Alarm Info\n"
 	  "----------\n"
@@ -594,7 +616,9 @@ void almShow (unsigned char verb)
       );
    
    LOCK(alm_lock);
+   lock_key = intLock();
    status.in_use = TRUE;
+   intUnlock(lock_key);
 
    act_p  = alarm_list;
 
@@ -636,13 +660,17 @@ void almShow (unsigned char verb)
       );
 
    do {				/* The timer interrupted */
+      lock_key = intLock();
       status.in_use  = TRUE;
       status.woke_up = FALSE;
+      intUnlock(lock_key);
 
       DBG(3, "almInfo: checking for alarms.");
       alm_check();		/* Check for and post alarms due */
 
+      lock_key = intLock();
       status.in_use  = FALSE;
+      intUnlock(lock_key);
    } while (status.woke_up);
 
    UNLOCK(alm_lock);
@@ -672,6 +700,9 @@ void almShow (unsigned char verb)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.5  2004/03/29 13:29:14  lange
+ * Bugfix: Guard bitfield operations
+ *
  * Revision 2.4  1999/09/08 18:03:10  lange
  * Fixed more Tornado101 warnings
  *
