@@ -4,9 +4,15 @@ include $(TOP)/config/CONFIG_APP
 #-----------------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 
-USR_CFLAGS += -D$(T_A)
+ALLOWED_TARGETS = mv162 vmod60 eltec27
 
-SRCS.c += ../alm.c ../alm_test.c
+ifeq (,$(findstring $(T_A),$(ALLOWED_TARGETS)))
+inc::
+	@echo Target architecture $(T_A) not supported by almLib.
+	@exit 2
+endif
+
+USR_CFLAGS += -D$(T_A)
 
 USR_INCLUDES += -I$(INSTALL_LOCATION)/include
 
@@ -16,7 +22,9 @@ LIBNAME = almLib
 LIBOBJS += alm.o
 
 TARGETS += alm_test.o
+#PROD += alm_test.o
 
 include $(TOP)/config/RULES.Vx
 #-----------------------------------------------
 #  ADD RULES AFTER THIS LINE
+alm.o:: ../alm_mcc.c ../alm_z8536.c ../alm.h
