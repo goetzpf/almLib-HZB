@@ -23,46 +23,32 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.2 $
- * $Date: 1997/07/31 18:07:03 $
+ * Revision log at end of file
  *
- * $Author: lange $
+ * This software is copyrighted by the BERLINER SPEICHERRING-
+ * GESELLSCHAFT FUER SYNCHROTRONSTRAHLUNG M.B.H., BERLIN, GERMANY.
+ * The following terms apply to all files associated with the software.
  *
- * $Log: almLib.c,v $
- * Revision 2.2  1997/07/31 18:07:03  lange
- * alm -> almLib
+ * BESSY hereby grants permission to use, copy and modify this software
+ * and its documentation for non-commercial, educational or research
+ * purposes, provided that existing copyright notices are retained in
+ * all copies.
  *
- * Revision 2.1  1997/07/31 17:50:23  lange
- * alm_init -> almInit, reflects mv162 cpu speed.
+ * The receiver of the software provides BESSY with all enhancements,
+ * including complete translations, made by the receiver.
  *
- * Revision 2.0  1997/02/07 16:30:46  lange
- * Changed interface; alm is standalone module now.
+ * IN NO EVENT SHALL BESSY BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
+ * SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE
+ * OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY DERIVATIVES THEREOF, EVEN
+ * IF BESSY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Revision 1.8  1997/02/07 16:04:33  lange
- * Added counter increment; made alm a module of its own.
+ * BESSY SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NON-INFRINGEMENT. THIS SOFTWARE IS PROVIDED
+ * ON AN "AS IS" BASIS, AND BESSY HAS NO OBLIGATION TO PROVIDE MAINTENANCE,
+ * SUPPORT, UPDATES, ENHANCEMENTS OR MODIFICATIONS.
  *
- * Revision 1.7  1996/10/29 13:11:53  lange
- * First version to go into EPICS tree (locally).
- *
- * Revision 1.6  1996/08/30 13:35:50  lange
- * More interrupt locking (against spurious interrupts).
- *
- * Revision 1.5  1996/06/06 14:54:50  lange
- * Timer is not reset at startup; debug info changes.
- *
- * Revision 1.4  1996/06/04 10:01:12  lange
- * Secure against multiple initialisation.
- *
- * Revision 1.3  1996/06/03 20:18:13  lange
- * Alarms seem to work now (multiple bugs fixed).
- *
- * Revision 1.2  1996/05/22 14:06:11  lange
- * New watchdog-like functionality.
- *
- * Revision 1.1  1996/05/20 11:54:57  lange
- * Changed name (to avoid EPICS name conflicts).
- *
- * Copyright (c) 1996, 1997
+ * Copyright (c) 1996, 1997, 1999
  *			Berliner Elektronenspeicherring-Gesellschaft
  *			      fuer Synchrotronstrahlung m.b.H.,
  *				     Berlin, Germany
@@ -70,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.2 1997/07/31 18:07:03 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.3 1999/09/08 17:40:22 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -661,3 +647,70 @@ void almShow (unsigned char verb)
 
    UNLOCK(alm_lock);
 }
+
+/*+**************************************************************************
+ *
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
+ *
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
+ *
+ * File:	almLib.c
+ *
+ * Description:	Library package to implement a high resolution alarm clock.
+ *		Contains the hardware inpependent parts of this library.
+ *		The appropriate lower level driver code is included.
+ *		the target architecture should be cpp-defined:
+ *		mv162    -  for Motorola's MVME162 board family
+ *		vmod60   -  Janz VMOD-60 cpu
+ *		eltec27  -  Eltec Eurocom E27
+ *
+ * To Do:
+ *		- Should auto-configure at almInit() instead of setting
+ *		  fixed values after querying the cpu speed.
+ *              - Should use VME2chip to work on mv167
+ *
+ * Author(s):	Ralph Lange
+ *
+ * $Log: almLib.c,v $
+ * Revision 2.3  1999/09/08 17:40:22  lange
+ * Fixed Tornado101 warnings
+ *
+ * Revision 2.2  1997/07/31 18:07:03  lange
+ * alm -> almLib
+ *
+ * Revision 2.1  1997/07/31 17:50:23  lange
+ * alm_init -> almInit, reflects mv162 cpu speed.
+ *
+ * Revision 2.0  1997/02/07 16:30:46  lange
+ * Changed interface; alm is standalone module now.
+ *
+ * Revision 1.8  1997/02/07 16:04:33  lange
+ * Added counter increment; made alm a module of its own.
+ *
+ * Revision 1.7  1996/10/29 13:11:53  lange
+ * First version to go into EPICS tree (locally).
+ *
+ * Revision 1.6  1996/08/30 13:35:50  lange
+ * More interrupt locking (against spurious interrupts).
+ *
+ * Revision 1.5  1996/06/06 14:54:50  lange
+ * Timer is not reset at startup; debug info changes.
+ *
+ * Revision 1.4  1996/06/04 10:01:12  lange
+ * Secure against multiple initialisation.
+ *
+ * Revision 1.3  1996/06/03 20:18:13  lange
+ * Alarms seem to work now (multiple bugs fixed).
+ *
+ * Revision 1.2  1996/05/22 14:06:11  lange
+ * New watchdog-like functionality.
+ *
+ * Revision 1.1  1996/05/20 11:54:57  lange
+ * Changed name (to avoid EPICS name conflicts).
+ *
+ * Copyright (c) 1996, 1997, 1999
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
+ *
+ **************************************************************************-*/

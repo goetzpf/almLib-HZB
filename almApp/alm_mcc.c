@@ -16,28 +16,37 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.2 $
- * $Date: 1997/07/31 18:07:07 $
+ * $Revision: 2.3 $
+ * $Date: 1999/09/08 17:40:22 $
  *
  * $Author: lange $
  *
- * $Log: alm_mcc.c,v $
- * Revision 2.2  1997/07/31 18:07:07  lange
- * alm -> almLib
+ * Revision log at end of file
  *
- * Revision 2.1  1997/07/31 17:50:25  lange
- * alm_init -> almInit, reflects mv162 cpu speed.
+ * This software is copyrighted by the BERLINER SPEICHERRING-
+ * GESELLSCHAFT FUER SYNCHROTRONSTRAHLUNG M.B.H., BERLIN, GERMANY.
+ * The following terms apply to all files associated with the software.
  *
- * Revision 2.0  1997/02/07 16:30:49  lange
- * Changed interface; alm is standalone module now.
+ * BESSY hereby grants permission to use, copy and modify this software
+ * and its documentation for non-commercial, educational or research
+ * purposes, provided that existing copyright notices are retained in
+ * all copies.
  *
- * Revision 1.2  1997/02/07 16:04:36  lange
- * Added counter increment; made alm a module of its own.
+ * The receiver of the software provides BESSY with all enhancements,
+ * including complete translations, made by the receiver.
  *
- * Revision 1.1  1996/10/29 13:11:53  lange
- * First version to go into EPICS tree (locally).
+ * IN NO EVENT SHALL BESSY BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
+ * SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE
+ * OF THIS SOFTWARE, ITS DOCUMENTATION, OR ANY DERIVATIVES THEREOF, EVEN
+ * IF BESSY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * Copyright (c) 1996, 1997
+ * BESSY SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+ * PARTICULAR PURPOSE AND NON-INFRINGEMENT. THIS SOFTWARE IS PROVIDED
+ * ON AN "AS IS" BASIS, AND BESSY HAS NO OBLIGATION TO PROVIDE MAINTENANCE,
+ * SUPPORT, UPDATES, ENHANCEMENTS OR MODIFICATIONS.
+ *
+ * Copyright (c) 1996, 1997, 1999
  *			Berliner Elektronenspeicherring-Gesellschaft
  *			      fuer Synchrotronstrahlung m.b.H.,
  *				     Berlin, Germany
@@ -260,7 +269,7 @@ void alm_int_handler (int arg)
 long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.2 1997/07/31 18:07:07 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.3 1999/09/08 17:40:22 lange Exp $";
 
    DBG(5, "Entering almInit.");
 
@@ -331,3 +340,45 @@ unsigned long alm_freq (void)
    DBG(5, "Leaving alm_freq.");
    return (timer_freq);
 }
+
+/*+**************************************************************************
+ *
+ * Project:	Experimental Physics and Industrial Control System (EPICS)
+ *
+ * Module:	Alm - High Resolution Timer and Alarm Clock Library
+ *
+ * File:	alm_mcc.c  -  (included by alm.c)
+ *
+ * Description:	Library package to implement a high resolution alarm clock.
+ *              System dependent part - Motorola MCCchip
+ *              On the MOTOROLA MVME 162/167:
+ *                Uses the timer 4 on the mvme16x's MCC chip. (See also 
+ *		  timestamp timer code in ~vw/src/drv/timer/mccTimerTS.c)
+ *
+ * Author(s):	Ralph Lange
+ *
+ * $Log: alm_mcc.c,v $
+ * Revision 2.3  1999/09/08 17:40:22  lange
+ * Fixed Tornado101 warnings
+ *
+ * Revision 2.2  1997/07/31 18:07:07  lange
+ * alm -> almLib
+ *
+ * Revision 2.1  1997/07/31 17:50:25  lange
+ * alm_init -> almInit, reflects mv162 cpu speed.
+ *
+ * Revision 2.0  1997/02/07 16:30:49  lange
+ * Changed interface; alm is standalone module now.
+ *
+ * Revision 1.2  1997/02/07 16:04:36  lange
+ * Added counter increment; made alm a module of its own.
+ *
+ * Revision 1.1  1996/10/29 13:11:53  lange
+ * First version to go into EPICS tree (locally).
+ *
+ * Copyright (c) 1996, 1997, 1999
+ *			Berliner Elektronenspeicherring-Gesellschaft
+ *			      fuer Synchrotronstrahlung m.b.H.,
+ *				     Berlin, Germany
+ *
+ **************************************************************************-*/
