@@ -16,10 +16,10 @@ USR_CFLAGS += -D$(T_A)
 
 USR_INCLUDES += -I$(INSTALL_LOCATION)/include
 
-INC += alm.h
+INC += almLib.h
 
 LIBNAME = almLib
-LIBOBJS += alm.o
+LIBOBJS += almLib.o
 
 TARGETS += alm_test.o
 #PROD += alm_test.o
@@ -27,4 +27,4 @@ TARGETS += alm_test.o
 include $(TOP)/config/RULES.Vx
 #-----------------------------------------------
 #  ADD RULES AFTER THIS LINE
-alm.o:: ../alm_mcc.c ../alm_z8536.c ../alm.h
+almLib.o:: ../alm_mcc.c ../alm_z8536.c ../almLib.h
