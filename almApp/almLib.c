@@ -56,21 +56,23 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.8 2004/06/24 11:22:46 luchini Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9 2004/07/13 13:14:24 luchini Exp $";
 
 
-#include <vxWorks.h>
+#include <vxWorks.h>          /* OK, ERROR                         */
 #include <stdio.h>
 #include <stdlib.h>
-#include <iv.h>               /* for INUM_TO_VEC() macro       */
-#include <intLib.h>           /* for intLock(), intUnlock()    */
-#include <semaphore.h>        /* for sem_t                     */
-#include <string.h>           /* for memmove()                 */
-#include <debugmsg.h>         /* DBG_IMPLIMENT,DBG_MSG, macros */
-#include <logLib.h>           /* logMsg()                      */
-#include <almLib.h>           /* alm_check(),etc               */
-#include <alm.h>              /* for alm_setup(),alm_status_ts */
-                              /* alm_enable(),alm_disable(),etc*/
+#include <iv.h>               /* for INUM_TO_VEC() macro           */
+#include <intLib.h>           /* for intLock(), intUnlock()        */
+#include <semaphore.h>        /* for sem_t                         */
+#include <string.h>           /* for memmove()                     */
+#include <debugmsg.h>         /* DBG_DECLARE,DBG_MSG,etc macros    */
+#include <logLib.h>           /* logMsg() prototype                */
+
+#include "alm.h"              /* for alm_init_symTbl() prototype  */
+#include "almLib.h"           /* alm_check() prototype            */
+
+
 
 /*+**************************************************************************
  *              Types
@@ -87,22 +89,21 @@ typedef struct a_node
 } Alarm_Entry;
 
 /*+**************************************************************************
- *		global variables
+ *		Local variables
  **************************************************************************-*/
-/* External globals */
-IMPORT alm_status_ts  alm_status;          /* alarm status info             */
 
-/* Local globals */
-DECLARE_LOCK(alm_lock);                    /* Mutex semaphore               */
-DBG_DECLARE                                /* Debug Messages                */
+DECLARE_LOCK(alm_lock);                         /* Mutex semaphore               */
+DBG_DECLARE                                     /* Debug Messages                */
 
-static unsigned long  last_checked=0;      /* Time of last alarm list check */
-static Alarm_Entry*   alarm_list = NULL;   /* List of pending alarms        */
-static Alarm_Entry*   last_alarm = NULL;   /* End of alarm list             */
-static Alarm_Entry*   free_list = NULL;	   /* List of unused alarm entries  */
-static unsigned long  int_subtract=0;      /* interrupt delay adjutsment    */
+static unsigned long    int_subtract=0;         /* interrupt delay adjutsment    */
+static unsigned long    last_checked=0;         /* Time of last alarm list check */
+static Alarm_Entry     *alarm_list     = NULL;  /* List of pending alarms        */
+static Alarm_Entry     *last_alarm     = NULL;  /* End of alarm list             */
+static Alarm_Entry     *free_list      = NULL;  /* List of unused alarm entries  */
+static alm_status_ts   *alm_status_ps  = NULL;  /* alarm status bitfield         */
+static alm_func_tbl_ts *alm_ps         = NULL;  /* alarm timer func symbol tbl   */ 
 
-/*+**************************************************************************
+ /*+**************************************************************************
  *		Parameter Definitions
  **************************************************************************-*/
 
@@ -116,8 +117,9 @@ static unsigned long  int_subtract=0;      /* interrupt delay adjutsment    */
  **************************************************************************-*/
 
 /* Discard an alarm list entry */
-static void alm_discard (Alarm_Entry* id);  
-DBG_IMPLEMENT(alm)	               	    /* Debug stuff */
+static void alm_discard (Alarm_Entry* id);
+
+DBG_IMPLEMENT(alm)	               	        /* Debug stuff */
 
 
 
@@ -125,44 +127,68 @@ DBG_IMPLEMENT(alm)	               	    /* Debug stuff */
  *
  * Function:	almInit
  *
- * Description:	Initialize the alarm library.
+ * Description:	Initialize the alarm library. This function MUST be called
+ *              prior to all other almLib functons.
  *
  * Arg(s) In:	None.
  *
  * Arg(s) Out:	None.
  *
  * Return(s):	Error code:
- *                    OK                        - Successful completion
- *                    S_dev_vectorInUse         - Failure due to vector in use
- *                    S_dev_vxWorksVecInstlFail - Failure due to intConnect() problem
+ *               OK                        - Successful completion
+ *               ERROR                     - Failured to initialize the low-level almarm symbol table
+ *               S_dev_vectorInUse         - Failure due to vector in use
+ *               S_dev_vxWorksVecInstlFail - Failure due to intConnect() problem
  *
  **************************************************************************-*/
 
 long almInit (void)
 {
-   long          status = OK;  
-   unsigned long vector=0;
-   
+   long                    status = OK;  
+   unsigned long           vector=0;
+   static alm_func_tbl_ts *tbl_ps = NULL;
+
 
    DBG(5, "Entering almInit.");
-
+   
    /* Has initialization begun? */
-   if ( !alm_status.init_s ) {
-      alm_status.init_s = TRUE;  
+   if ( !alm_ps ) {
+     tbl_ps = alm_init_symTbl();
+     if ( !tbl_ps ) 
+        status = ERROR;
+     else if ( !tbl_ps->getStatus ) {
+        status = ERROR;
+        logMsg("almInit: Failed to find low-level ALM_getStatus() routine.\n",0,0,0,0,0,0);
+     } else { 
+        alm_status_ps = (*tbl_ps->getStatus)();
+        alm_ps = tbl_ps;
+     }  
+     /* Check for errors before continuing */
+     if ( status!=OK ) {
+        logMsg("almInit: Failed to initialize low-level alarm symbol table.\n",0,0,0,0,0,0);
+        DBG(5, "Leaving almInit.");
+        return(status);
+     }  
+     DBG(5,"almInit: Successfully initialize low-level alarm symbol table."); 
+   }
+   
+   /* Is the timer alarm in progress? */
+   if ( !alm_status_ps->init_s ) {
+      alm_status_ps->init_s = TRUE;  
       DBG_INIT;
-
+      
       /* Init mutex semaphore */
-      if (INIT_LOCK(alm_lock)) {
+      if (INIT_LOCK(alm_lock)) { 
         logMsg("almInit: Function sem_init() failed.",0,0,0,0,0,0);
         status=ERROR;
       } else { 
 
         /* Attach isr to interrupt vector address */
-        vector = (unsigned long)alm_status.int_vec;
+        vector = alm_status_ps->int_vec;
 	status = intConnect(INUM_TO_IVEC(vector),alm_int_handler,0);
         if (status==OK) {
-          int_subtract = alm_int_delay_adjust();
-
+          int_subtract = (*alm_ps->int_delay_adjust)();
+	  
           /* Enable the timer. For the mcc chip (on mv162)
            * this means that the timer enable bit is set, but
            * the compare register must be set with a value before
@@ -173,10 +199,10 @@ long almInit (void)
            * base count register must be cleared. So the sequence
            * of events here are quite important.
            */
-          status = alm_enable();  
+          status = (*alm_ps->enable)();  
           if (status==OK) {   
-            alm_status.init_d = TRUE; 
-            DBG(1, "almInit: Initialization done."); 
+            alm_status_ps->init_d = TRUE; 
+            DBG(1, "almInit: Initialization completed successfully."); 
           } else  /* Done enabling timer */ 
              logMsg("almInit: Failed to enable alarm.",0,0,0,0,0,0);
         }/* Done connecting int handler to vector adrs */
@@ -184,7 +210,7 @@ long almInit (void)
 	  logMsg("almInit: Failed due to intConnect() error\n",0,0,0,0,0,0);
       } /* Done initializing mutex semaphone */  
    }/* Initialization complete */
-   else if (alm_status.init_d)
+   else if (alm_status_ps->init_d)
       DBG(1,"almInit: Initialization already performed successfully.");
    
    DBG(5, "Leaving almInit.");
@@ -211,7 +237,8 @@ static void alm_discard (Alarm_Entry* id)
 {
    register Alarm_Entry* last_p = last_alarm;
    register Alarm_Entry* act_p  = alarm_list;
-   char found = FALSE;
+   char                  found = FALSE;
+   
 
    DBG(5, "Entering alm_discard.");
 
@@ -276,12 +303,18 @@ static void alm_discard (Alarm_Entry* id)
 void alm_check (void)
 {
    register unsigned long ts;
-   register char found;
+   register char found;   
+   
+
+   if ( !alm_ps || !alm_status_ps ) {
+     logMsg("alm_check: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+             0,0,0,0,0,0);
+     return;
+  }
 
    do {
       found = FALSE;
-
-      ts = alm_get_stamp() - last_checked;
+      ts = (*alm_ps->get_stamp)() - last_checked;
 
 				/* Check for alarms due */
       while ((alarm_list != NULL) &&
@@ -308,20 +341,18 @@ void alm_check (void)
    } while (found);
 
    if (alarm_list == NULL) {    /* No more alarms */
-
-      alm_disable(); 
+      (*alm_ps->disable)();
       DBG(3, "alm_check: no more alarms, timer disabled.");
 
    } else {
-
       ASSERT_STRUC(alarm_list, Alarm_Entry);
 
 				/* Set up alarm for first in line */
       ts = alarm_list->time_due - last_checked;
-      alm_setup(ts);
+      (*alm_ps->setup)(ts);
 
       PRF(3, ("alm_check: timer set to next alarm (%p) in %lu us.\n",
-		  alarm_list, ts));
+	      alarm_list, ts));
    }
 }
 
@@ -361,13 +392,21 @@ alm_start (
    unsigned long         ts_ref=0;
    unsigned long         i=0;
    char                  moved=FALSE;
+   
 
    DBG(5, "Entering alm_start.");
-
+   
+   if ( !alm_ps || !alm_status_ps ) {
+     logMsg("alm_start: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+             0,0,0,0,0,0);
+     DBG(5, "Leaving alm_start.");     
+     return(new_p);
+  }
+   
    LOCK(alm_lock);
 
    lock_key = intLock();
-   alm_status.in_use = TRUE;
+   alm_status_ps->in_use = TRUE;
    intUnlock(lock_key);
 				/* Is the free list empty? */
    if (free_list == NULL) {
@@ -378,7 +417,7 @@ alm_start (
 
       if (free_list == NULL) {	/* calloc error */
          lock_key = intLock();
-	 alm_status.in_use = FALSE;
+	 alm_status_ps->in_use = FALSE;
          intUnlock(lock_key);
 	 UNLOCK(alm_lock);
 	 DBG(5, "Leaving alm_start.");
@@ -386,7 +425,7 @@ alm_start (
       }
 				/* and initialize it */
       lock_key = intLock();
-      alm_status.entries += LIST_CHUNK_SIZE;
+      alm_status_ps->entries += LIST_CHUNK_SIZE;
       intUnlock(lock_key);
 
       for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
@@ -405,7 +444,7 @@ alm_start (
    
    ASSERT_STRUC(new_p, Alarm_Entry);
 
-   ts_now = alm_get_stamp();    /* Calculate time due */
+   ts_now = (*alm_ps->get_stamp)();    /* Calculate time due */
    ts_due = ts_now + (delay > INT_SUBTRACT ? (delay - INT_SUBTRACT) : 0);
 
    new_p->time_due = ts_due;	/* Fill the alarm entry */
@@ -471,7 +510,7 @@ alm_start (
 
 				/* Set up the next alarm */
       ts_due = alarm_list->time_due - ts_now;
-      alm_setup(ts_due);
+      (*alm_ps->setup)(ts_due);
 
       PRF(3, ("alm_start: next alarm (%p) set up (in %u us).\n",
 		  alarm_list, ts_due));
@@ -479,17 +518,17 @@ alm_start (
 
    do {				/* The timer interrupted */
       lock_key = intLock();
-      alm_status.in_use  = TRUE;
-      alm_status.woke_up = FALSE;
+      alm_status_ps->in_use  = TRUE;
+      alm_status_ps->woke_up = FALSE;
       intUnlock(lock_key);
 
       DBG(3, "alm_start: checking for alarms due.");
       alm_check();		/* Check for and post alarms due */
 
       lock_key = intLock();
-      alm_status.in_use  = FALSE;
+      alm_status_ps->in_use  = FALSE;
       intUnlock(lock_key);
-   } while (alm_status.woke_up);
+   } while (alm_status_ps->woke_up);
 
    UNLOCK(alm_lock);
 
@@ -518,16 +557,24 @@ alm_start (
 void
 alm_cancel (alm_ID id)
 {
-   register Alarm_Entry* act_p;
-   unsigned long ts_diff;
-   register int lock_key;
+   register Alarm_Entry* act_p=NULL;
+   unsigned long         ts_diff=0;
+   register int          lock_key=0;
+
 
    DBG(5, "Entering alm_cancel.");
-
+      
+   if ( !alm_ps || !alm_status_ps ) {
+     logMsg("alm_cancel: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+             0,0,0,0,0,0);
+     DBG(5, "Leaving alm_cancel");
+     return;
+  }
+   
    LOCK(alm_lock);
-
+  
    lock_key = intLock();
-   alm_status.in_use = TRUE;
+   alm_status_ps->in_use = TRUE;
    intUnlock(lock_key);
 
    act_p  = alarm_list;
@@ -535,7 +582,7 @@ alm_cancel (alm_ID id)
    if (!act_p) {
       DBG(3, "alm_cancel: Empty alarm list.");
       lock_key = intLock();
-      alm_status.in_use  = FALSE;
+      alm_status_ps->in_use  = FALSE;
       intUnlock(lock_key);
       UNLOCK(alm_lock);
       DBG(5, "Leaving alm_cancel.");
@@ -543,7 +590,7 @@ alm_cancel (alm_ID id)
    }
    
    if (act_p == id) {		/* Cancel the running alarm */
-      alm_disable();
+      (*alm_ps->disable)();
       PRF(3, ("alm_cancel: current alarm (%p) stopped.\n", id));
 
       alm_discard(id);		/* Discard it */
@@ -553,9 +600,9 @@ alm_cancel (alm_ID id)
 
 	 ASSERT_STRUC(alarm_list, Alarm_Entry);
 
-	 ts_diff = alarm_list->time_due - alm_get_stamp();
+	 ts_diff = alarm_list->time_due - (*alm_ps->get_stamp)();
 
-	 alm_setup(ts_diff);
+	 (*alm_ps->setup)(ts_diff);
 	 PRF(3, ("alm_cancel: next alarm (%p) set up (in %d us).\n",
 		     alarm_list, ts_diff));
       }
@@ -568,17 +615,17 @@ alm_cancel (alm_ID id)
 
    do {				/* The timer interrupted */
       lock_key = intLock();
-      alm_status.in_use  = TRUE;
-      alm_status.woke_up = FALSE;
+      alm_status_ps->in_use  = TRUE;
+      alm_status_ps->woke_up = FALSE;
       intUnlock(lock_key);
 
       DBG(3, "alm_cancel: int handler was called.");
       alm_check();		/* Check for and post alarms due */
 
       lock_key = intLock();
-      alm_status.in_use  = FALSE;
+      alm_status_ps->in_use  = FALSE;
       intUnlock(lock_key);
-   } while (alm_status.woke_up);
+   } while (alm_status_ps->woke_up);
 
    UNLOCK(alm_lock);
    DBG(5, "Leaving alm_cancel.");
@@ -609,14 +656,23 @@ void almShow (unsigned char verb)
    unsigned short        i = 0;
    unsigned long         len;
 
+
+   if ( !alm_ps || !alm_status_ps ) {
+      printf("Alarm Info\n");
+      printf("----------\n");
+      printf("NOT AVAILABLE: almInit() has not been called.\n");    
+      return;
+   }
+   
+
    printf("Alarm Info\n"
 	  "----------\n"
 	  "Last check was at %lu; time now is %lu; alarm ",
 	  last_checked,
-	  alm_get_stamp()
+	  (*alm_ps->get_stamp)()
       );
 
-   if (alm_status.running)
+   if (alm_status_ps->running)
       printf("is ");
    else
       printf("is NOT ");
@@ -626,7 +682,7 @@ void almShow (unsigned char verb)
    
    LOCK(alm_lock);
    lock_key = intLock();
-   alm_status.in_use = TRUE;
+   alm_status_ps->in_use = TRUE;
    intUnlock(lock_key);
 
    act_p  = alarm_list;
@@ -662,25 +718,25 @@ void almShow (unsigned char verb)
 	 act_p = act_p->next_p;
       } while (act_p != alarm_list);
    
-      len=alm_status.entries * sizeof(Alarm_Entry);
+      len=alm_status_ps->entries * sizeof(Alarm_Entry);
    
       printf("%d used out of %d allocated alarm entries (%ld bytes).\n",
-	     i,alm_status.entries,len);
+	     i,alm_status_ps->entries,len);
       
 
    do {				/* The timer interrupted */
       lock_key = intLock();
-      alm_status.in_use  = TRUE;
-      alm_status.woke_up = FALSE;
+      alm_status_ps->in_use  = TRUE;
+      alm_status_ps->woke_up = FALSE;
       intUnlock(lock_key);
 
       DBG(3, "almInfo: checking for alarms.");
       alm_check();		/* Check for and post alarms due */
 
       lock_key = intLock();
-      alm_status.in_use  = FALSE;
+      alm_status_ps->in_use  = FALSE;
       intUnlock(lock_key);
-   } while (alm_status.woke_up);
+   } while (alm_status_ps->woke_up);
 
    UNLOCK(alm_lock);   
 }
@@ -712,15 +768,23 @@ void alm_status_show (unsigned char verb)
     unsigned long   vector=0;
  
 
+    if ( !alm_ps || !alm_status_ps ) {
+       printf("Alarm Status Info\n"
+	      "------------------\n"
+	      "NOT AVAILABLE:  almInit() has not been called.\n");
+       return;
+    }
+    
+    
     lock_key = intLock();
-    memmove((void *)&status_u._i,&alm_status,sizeof(status_u._i));
+    memmove((void *)&status_u._i,(void *)alm_status_ps,sizeof(status_u._i));
     intUnlock(lock_key);
 
     printf("Alarm Status Info\n"
 	   "------------------\n"
 	   "Last check was at %lu; time now is %lu; status is 0x%lx\n",
 	   last_checked,
-	   alm_get_stamp(),
+	   (*alm_ps->get_stamp)(),
            status_u._i);
 
     if ( verb ) { 
@@ -769,15 +833,26 @@ void alm_status_show (unsigned char verb)
 
 void alm_int_handler(int arg)
 {
-
-   alm_int_ack();             /* acknowledge the interrupt */
-   if (alm_status.in_use) {   /* User call is active       */
-      alm_status.woke_up = TRUE;
-      DBG(3, "alm_int_handler: Handler woke up.");
-   } else 		         /* No users around           */
-      alm_check();		/* Check for and post alarms */
+   if ( !alm_ps ) {
+     DBG(3,"alm_int_handler: alarm low-level timer symbol table has not been initialized. Call almInit().");
+     return;
+  }
+   
+   (*alm_ps->int_ack)();      /* acknowledge the interrupt */
+   
+   if (alm_status_ps && alm_status_ps->in_use) {   /* User call is active    */
+       alm_status_ps->woke_up = TRUE;
+       DBG(3, "alm_int_handler: Handler woke up.");
+   } else  { 
+       /* Since alm_check() doesn't access alm_status_ps then
+        * call it. Note that even if later alm_check() does access
+        * alm_status_ps it should also be modified to add a check for
+        * the existence of this pointer 
+        */
+                            /* No users around           */
+       alm_check();         /* Check for and post alarms */
+   }
 }
-
 
 
 /*+**************************************************************************
@@ -785,30 +860,189 @@ void alm_int_handler(int arg)
  * Function:    alm_intLevelSet
  *
  * Description: This routine sets the interrupt vector priority level 
- *              in a local variable to be used later when alm_setup()
+ *              in a local variable which will be used when alm_setup()
  *              or alm_enable are called. Please be aware that
  *              an expert users should be consulted when changing
- *              the timer interrup priority level.
+ *              the timer interrupt priority level.
  *
- * Arg(s) In:   level - Interrupt priority level (1-7)
+ *              The valid interrupt level range is 0-7. However, an 
+ *              interrupt level of 0 disables interrupts.
+ * 
+ * Arg(s) In:   level - Interrupt priority level (0-7)
+ *                      Note: an interrupt level of 0 will disable interrupts.
  * 
  * Arg(s) Out:  None.
  *
  * Return(s):   Error code:
- *                           OK or ERROR
+ *                    OK    - Successfully set interrupt level locally
+ *                    ERROR - Failed to set interrupt level locally
  *
  **************************************************************************-*/ 
 long alm_intLevelSet(int level)
 {
     long status=OK;
     
-    if ((level<=0) || (level>7)) 
-       status=ERROR;        
-    else 
-       alm_status.int_pri = level;
+    if ( (level<0) || (level>7) ) {
+       logMsg("alm_intLevelSet: Invalid interrupt level of %d val (0-7 inclusive)\n",level,0,0,0,0,0);
+       status=ERROR;    
+    }    
+    else if ( !alm_status_ps ) {
+       logMsg("alm_intLevelSet: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+               0,0,0,0,0,0);
+       status = ERROR;
+    }
+    else {
+       if ( level==0 ) 
+          logMsg("alm_intLevelSet: Warning interrupt level of zero disables interrupts.\n",0,0,0,0,0,0);
+       alm_status_ps->int_pri = level;
+    }
     return(status);  
 }
 
+/*+**************************************************************************
+ *              Wrapper Functions for low-level timer routines
+ *                         (BSP Specific)
+ **************************************************************************-*/
+ 
+
+/*+**************************************************************************
+ *
+ * Function:	alm_get_timestamp  (Wrapper function)
+ *
+ * Description:	This is a wrapper calls the low-level timer
+ *              function that returns the 32-bit timestamp value
+ *              with a 1us resolution.
+ *
+ * Arg(s) In:	None
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	Time stamp value.(in microseconds)
+ *
+ **************************************************************************-*/
+ 
+unsigned long alm_get_stamp(void)
+{
+   unsigned long    val=0;
+
+   if ( !alm_ps ) 
+     logMsg("alm_get_stamp: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+            0,0,0,0,0,0);
+   else
+     val = (*alm_ps->get_stamp)();      /* get the timestamp  */
+   return(val); 
+}
+
+
+
+/*+**************************************************************************
+ *
+ * Function:	alm_setup  (Wrapper function)
+ *
+ * Description:	This is a wrapper calls the low-level timer
+ *              function to setup the timer counter register and 
+ *              initiate counting.
+ *
+ * Arg(s) In:	delay  -  Demanded timer delay in microseconds
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	None
+ *
+ **************************************************************************-*/
+ 
+void alm_setup(unsigned long delay)
+{    
+    if ( !alm_ps ) 
+     logMsg("alm_setup: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+            0,0,0,0,0,0);
+    else
+      (*alm_ps->setup)(delay);   /* setup the time delay and begin counting */
+   return;
+}
+
+
+/*+**************************************************************************
+ *
+ * Function:	alm_reset  (Wrapper function)
+ *
+ * Description:	This is a wrapper calls the low-level timer function
+ *              that resets the timer comparator counter to 0 for the mv162.
+ *              Howecver, for the powerPc it sets the decrementer counter
+ *              to the maximum value and disables counting.
+ *
+ * Arg(s) In:	enb    - flag to enable (1) or inhibit counting 
+ *                       not used.
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	Status code:
+ *                   OK    - Successful completion 
+ *                   ERROR - Operation failed
+ *
+ **************************************************************************-*/
+ 
+long alm_reset(int enb)
+
+{
+    long   status=ERROR;
+    
+    if ( !alm_ps ) 
+       logMsg("alm_reset: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+            0,0,0,0,0,0);
+    else
+       status = (*alm_ps->reset)(enb);   /* Reset the counter, or disable it */
+    return(status);
+}
+
+
+/*+**************************************************************************
+ * 
+ * Function:    alm_intVecGet
+ *  
+ * Description: This routine returns the interupt vector table offset
+ *              used for timer #3. However, this does not indicate if
+ *              the alarm interrupt handler has alreay been setup at
+ *              this address.
+ *
+ * Arg(s) In:   None
+ * 
+ * Arg(s) Out:  None.
+ *
+ * Return(s):   Interrupt vector table offset
+ *
+ **************************************************************************-*/
+ 
+unsigned long alm_intVecGet(void)
+{
+   unsigned long vector = 0;
+   if ( alm_ps ) 
+     vector = (*alm_ps->intVecGet)();
+   return(vector);
+}
+/*+**************************************************************************
+ * 
+ * Function:    alm_intLevelGet
+ *
+ * Description:  This routine returns interrupt vector priority level.
+ *               currently set.
+ *
+ * Arg(s) In:   None
+ * 
+ * Arg(s) Out:  None.
+ *
+ * Return(s):   Interrupt vector priority level (0-7).
+ *
+ **************************************************************************-*/
+ 
+int alm_intLevelGet(void)
+{
+    int level = 0;
+    
+    if (alm_ps) 
+      level = (*alm_ps->intLevelGet)();   
+   return(level);
+}
 
 /*+**************************************************************************
  *
@@ -834,6 +1068,9 @@ long alm_intLevelSet(int level)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.9  2004/07/13 13:14:24  luchini
+ * Add wrapper functions for low-level timer support
+ *
  * Revision 2.8  2004/06/24 11:22:46  luchini
  * rename almStatus to alm_status_show
  *

@@ -16,8 +16,8 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.5 $
- * $Date: 2004/06/24 11:22:36 $
+ * $Revision: 2.6 $
+ * $Date: 2004/07/13 13:14:24 $
  *
  * $Author: luchini $
  *
@@ -61,11 +61,10 @@
 extern "C" {
 #endif
 
-
-#include <vxWorks.h>
-#include <semaphore.h>
-#include <debugmsg.h>
-
+#include <vxWorks.h>        
+#include <semaphore.h>        /* sem_t                             */
+#include <debugmsg.h>         /* DBG_EXTERN, macro                 */
+#include <logLib.h>           /* logMsg() prototype                */
 
 /*+**************************************************************************
  *		Types
@@ -95,8 +94,8 @@ alm_check (                  /* Checks alarm list for alarms */
    );
 
 extern void
-alm_cancel (		     /* Cancel a running alarm */
-   alm_ID id			/* ID of alarm to cancel */
+alm_cancel (                 /* Cancel a running alarm */
+   alm_ID id                    /* ID of alarm to cancel */
    );
 
 extern void                  /* Interrupt service routine     */
@@ -114,12 +113,84 @@ alm_status_show (
    unsigned char v             /* Verbosity [0..1] */
     );
     
-extern long             /* Set the interrupt priority level global */
+extern long                 /* Set the interrupt priority level global */
 alm_intLevelSet(
     int level                  /* Interrupt priority level [0..7] */
     );
 
-DBG_EXTERN(alm)		     /* Debug messages */
+/*+**************************************************************************
+ *
+ *		Wrapper Functions for low-level timer functions 
+ *                     (BSP specific) 
+ *
+ *               Note: only a few of these low-level timer 
+ *                     functions are exported for the general
+ *                     use of the application program so that 
+ *                     we don't change any existing applcations.
+ *                     However, the use of the timer low-level
+ *                     function should only be allowed by the
+ *                     almLib functions.
+ **************************************************************************-*/
+
+/* 
+ * The purpose of this function is to call the low=level
+ * timer funtion that returns the current the a 32-bit 
+ * timestamp.
+ */
+extern unsigned long   
+alm_get_stamp(
+   void
+   );
+
+/* 
+ * This purpose of this function is to call the low-level
+ * timer function that will setup the timer counter with
+ * the number counts that represent the delay specified 
+ * in microseconds and then enable counting.
+ */
+extern void 
+alm_setup(
+   unsigned long delay          /* delay in us */
+   );
+
+/* 
+ * This purpose of this function is to call the low-level timer function
+ * that resets the timer comparator counter to 0 for the mv162.
+ * Howecver, for the powerPc the low-level timer function sets 
+ * the decrementer counter to the maximum value and disables counting.
+ */ 
+extern long 
+alm_reset(
+   int enb                    /* Enable or disable counting --- not used */
+   ); 
+
+/*
+ * The purpose of this function is to return the 
+ * interrupt vector table offset used for timer #3.
+ * However, this does not indicate it the alarm interrupt
+ * handler (alm_int_handler) has been connected to this
+ * vector at the time of the call. To determine this the
+ * user should invoke the EPICS function veclist(), which 
+ * lists all of the functions currently connected to the
+ * vectors.
+ */
+
+extern unsigned long
+alm_intVecGet(
+   void
+   );
+
+/* 
+ * The purpose of this function is to return the interrupt
+ * level currently set in the timer#3 register. An interrupt
+ * level of 0 indicates that interrupts are disabled.
+ */
+extern int
+alm_intLevelGet(
+   void
+   );
+   
+   DBG_EXTERN(alm)		     /* Debug messages */
 #ifdef __cplusplus
 }
 #endif
@@ -143,6 +214,9 @@ DBG_EXTERN(alm)		     /* Debug messages */
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.h,v $
+ * Revision 2.6  2004/07/13 13:14:24  luchini
+ * Add wrapper functions for low-level timer support
+ *
  * Revision 2.5  2004/06/24 11:22:36  luchini
  * rename almStatus to alm_status_show
  *
