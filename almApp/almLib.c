@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.5 $
- * $Date: 1996/06/06 14:54:50 $
+ * $Revision: 1.6 $
+ * $Date: 1996/08/30 13:35:50 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.6  1996/08/30 13:35:50  lange
+ * More interrupt locking (against spurious interrupts).
+ *
  * Revision 1.5  1996/06/06 14:54:50  lange
  * Timer is not reset at startup; debug info changes.
  *
@@ -45,7 +48,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.5 1996/06/06 14:54:50 lange Exp $";
+rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.6 1996/08/30 13:35:50 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -380,10 +383,16 @@ void alm_setup (unsigned long delay)
 
 void alm_stop (void)
 {
+   register int lock_key;
+
    ALM_DBG(5, "Entering alm_stop.");
 
    if (status.running) {
+
+      lock_key = intLock();
       *MCC_T4_IRQ_CR = 0;	/* Disable interrupts */
+      intUnlock(lock_key);
+
       status.running = FALSE;
       ALM_DBG(4, "alm_stop: counter stopped.");
    }
@@ -479,11 +488,15 @@ void alm_check (void)
 
 void alm_int_handler (int arg)
 {
+   register int lock_key;
+
 #ifdef ALM_DEBUG
    int_context = TRUE;
 #endif
 
+   lock_key = intLock();
    *MCC_T4_IRQ_CR |= T4_IRQ_CR_ICLR; 	/* acknowledge timer interrupt */
+   intUnlock(lock_key);
 
    if (status.in_use) {		/* User call is active */
 
