@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.7 2004/06/22 12:04:22 luchini Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.8 2004/06/24 11:22:46 luchini Exp $";
 
 
 #include <vxWorks.h>
@@ -153,7 +153,7 @@ long almInit (void)
 
       /* Init mutex semaphore */
       if (INIT_LOCK(alm_lock)) {
-        DBG(0, "almInit: Function sem_init() failed.");
+        logMsg("almInit: Function sem_init() failed.",0,0,0,0,0,0);
         status=ERROR;
       } else { 
 
@@ -178,8 +178,10 @@ long almInit (void)
             alm_status.init_d = TRUE; 
             DBG(1, "almInit: Initialization done."); 
           } else  /* Done enabling timer */ 
-            DBG(1, "almInit: Failed to enable alarm.");
+             logMsg("almInit: Failed to enable alarm.",0,0,0,0,0,0);
         }/* Done connecting int handler to vector adrs */
+	else
+	  logMsg("almInit: Failed due to intConnect() error\n",0,0,0,0,0,0);
       } /* Done initializing mutex semaphone */  
    }/* Initialization complete */
    else if (alm_status.init_d)
@@ -686,7 +688,7 @@ void almShow (unsigned char verb)
 
 /*+**************************************************************************
  *
- * Function:	almStatus
+ * Function:	alm_status_show
  *
  * Description:	Prints debug info about the alm_status global structure.
  *              Must not be called from interrupt context.
@@ -701,7 +703,7 @@ void almShow (unsigned char verb)
  *
  **************************************************************************-*/
 
-void almStatus (unsigned char verb)
+void alm_status_show (unsigned char verb)
 {
     alm_status_tu   status_u;
     int             lock_key=0;
@@ -832,6 +834,9 @@ long alm_intLevelSet(int level)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.8  2004/06/24 11:22:46  luchini
+ * rename almStatus to alm_status_show
+ *
  * Revision 2.7  2004/06/22 12:04:22  luchini
  * Add functions & chg var status to global var alm_status
  *

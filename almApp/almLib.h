@@ -16,8 +16,8 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.4 $
- * $Date: 2004/06/22 09:24:14 $
+ * $Revision: 2.5 $
+ * $Date: 2004/06/24 11:22:36 $
  *
  * $Author: luchini $
  *
@@ -110,7 +110,7 @@ almShow (
    );
 
 extern void                 /* Print alarm info from alm_status global */
-almStatus (
+alm_status_show (
    unsigned char v             /* Verbosity [0..1] */
     );
     
@@ -143,6 +143,9 @@ DBG_EXTERN(alm)		     /* Debug messages */
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.h,v $
+ * Revision 2.5  2004/06/24 11:22:36  luchini
+ * rename almStatus to alm_status_show
+ *
  * Revision 2.4  2004/06/22 09:24:14  luchini
  * moved bsp specific prototypes to alm.h
  *
