@@ -1,7 +1,6 @@
 # Makefile.Vx
 TOP = ../..
 include $(TOP)/config/CONFIG_APP
-INSTALL_LOCATION = $(TOP)
 #-----------------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 
