@@ -19,12 +19,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.2 $
- * $Date: 1997/02/07 16:04:47 $
+ * $Revision: 2.0 $
+ * $Date: 1997/02/07 16:30:51 $
  *
  * $Author: lange $
  *
  * $Log: alm_z8536.c,v $
+ * Revision 2.0  1997/02/07 16:30:51  lange
+ * Changed interface; alm is standalone module now.
+ *
  * Revision 1.2  1997/02/07 16:04:47  lange
  * Added counter increment; made alm a module of its own.
  *
@@ -724,7 +727,7 @@ int
 alm_init (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 1.2 1997/02/07 16:04:47 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.0 1997/02/07 16:30:51 lange Exp $";
 
    register int lock_key;
    register unsigned char tmp;    /* Dummy */

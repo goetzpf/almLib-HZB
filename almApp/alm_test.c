@@ -13,12 +13,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.1 $
- * $Date: 1997/02/07 16:04:46 $
+ * $Revision: 2.0 $
+ * $Date: 1997/02/07 16:30:50 $
  *
  * $Author: lange $
  *
  * $Log: alm_test.c,v $
+ * Revision 2.0  1997/02/07 16:30:50  lange
+ * Changed interface; alm is standalone module now.
+ *
  * Revision 1.1  1997/02/07 16:04:46  lange
  * Added counter increment; made alm a module of its own.
  *
@@ -30,7 +33,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: alm_test.c,v 1.1 1997/02/07 16:04:46 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.0 1997/02/07 16:30:50 lange Exp $";
 
 
 #include <semaphore.h>

@@ -18,12 +18,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.8 $
- * $Date: 1997/02/07 16:04:33 $
+ * $Revision: 2.0 $
+ * $Date: 1997/02/07 16:30:46 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 2.0  1997/02/07 16:30:46  lange
+ * Changed interface; alm is standalone module now.
+ *
  * Revision 1.8  1997/02/07 16:04:33  lange
  * Added counter increment; made alm a module of its own.
  *
@@ -56,7 +59,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 1.8 1997/02/07 16:04:33 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.0 1997/02/07 16:30:46 lange Exp $";
 
 
 #include <vxWorks.h>

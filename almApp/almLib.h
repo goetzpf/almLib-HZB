@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.5 $
- * $Date: 1997/02/07 16:04:35 $
+ * $Revision: 2.0 $
+ * $Date: 1997/02/07 16:30:48 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 2.0  1997/02/07 16:30:48  lange
+ * Changed interface; alm is standalone module now.
+ *
  * Revision 1.5  1997/02/07 16:04:35  lange
  * Added counter increment; made alm a module of its own.
  *

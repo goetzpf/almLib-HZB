@@ -7,17 +7,17 @@ INSTALL_LOCATION = $(TOP)
 
 USR_CFLAGS += -D$(T_A)
 
-SRCS.c += ../alm.c
+SRCS.c += ../alm.c ../alm_test.c
 
 USR_INCLUDES += -I$(INSTALL_LOCATION)/include
 
 INC += alm.h
 
-PROD += alm.o
+LIBNAME = almLib
+LIBOBJS += alm.o
+
 TARGETS += alm_test.o
 
 include $(TOP)/config/RULES.Vx
 #-----------------------------------------------
 #  ADD RULES AFTER THIS LINE
-
-alm_test.o: alm.o ../alm_test.c

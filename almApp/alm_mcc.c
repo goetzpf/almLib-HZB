@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.2 $
- * $Date: 1997/02/07 16:04:36 $
+ * $Revision: 2.0 $
+ * $Date: 1997/02/07 16:30:49 $
  *
  * $Author: lange $
  *
  * $Log: alm_mcc.c,v $
+ * Revision 2.0  1997/02/07 16:30:49  lange
+ * Changed interface; alm is standalone module now.
+ *
  * Revision 1.2  1997/02/07 16:04:36  lange
  * Added counter increment; made alm a module of its own.
  *
@@ -232,7 +235,7 @@ void alm_int_handler (int arg)
 int alm_init (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 1.2 1997/02/07 16:04:36 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.0 1997/02/07 16:30:49 lange Exp $";
 
    DBG(5, "Entering alm_init.");
 
