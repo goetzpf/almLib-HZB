@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.2 $
- * $Date: 1996/05/22 14:06:11 $
+ * $Revision: 1.3 $
+ * $Date: 1996/06/03 20:18:13 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.3  1996/06/03 20:18:13  lange
+ * Alarms seem to work now (multiple bugs fixed).
+ *
  * Revision 1.2  1996/05/22 14:06:11  lange
  * New watchdog-like functionality.
  *
@@ -36,7 +39,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.2 1996/05/22 14:06:11 lange Exp $";
+rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.3 1996/06/03 20:18:13 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -49,14 +52,13 @@ rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.2 1996/05/22 14:06:11 lange Exp $";
 
 #include <drv/multi/mcchip.h>
 
-#include <ts48.h>
-
 #include "alm.h"
 
 
-#define ALARMCLOCK_LEVEL 1	/* Alarm clock's interrupt level */
+#define INT_INHIBIT  25ul	/* Minimum interrupt delay */
+#define INT_SUBTRACT 42ul	/* Subtracted from every delay */
 
-#define INT_INHIBIT 500L	/* Minimum interrupt delay */
+#define ALARMCLOCK_LEVEL 1	/* Alarm clock's interrupt level */
 #define LIST_CHUNK_SIZE 20	/* Number of elements in alarm list chunk */
 
 
@@ -113,8 +115,8 @@ extern void logMsg(char*, ...);
    
 #define Alarm_Entry_MAGIC1 0x12345601
 #define Alarm_Entry_MAGIC2 0x12345602
-#define MAGIC1 unsigned long magic1
-#define MAGIC2 unsigned long magic2
+#define MAGIC1 unsigned long magic1;
+#define MAGIC2 unsigned long magic2;
 
 #else  /* NOT ALM_DEBUG */
 
@@ -174,11 +176,12 @@ extern void logMsg(char*, ...);
 
 typedef struct a_node
 {
-   MAGIC1;
-   ts48_Stamp     time_due;	/* Alarm time */
+   MAGIC1
+   unsigned long  time_due;	/* Alarm time */
+   char           is_new;
    sem_t*         sem_p;	/* Semaphore to give */
    struct a_node* next_p;
-   MAGIC2;
+   MAGIC2
 } Alarm_Entry;
 
 
@@ -194,7 +197,10 @@ static struct
    unsigned int entries : 8;	/* Used Alam_Entries */
 } status = {FALSE, FALSE, FALSE, 0};
 
+static unsigned long last_checked; /* Time of last alarm list check */
+
 static Alarm_Entry* alarm_list;	/* List of pending alarms */
+static Alarm_Entry* last_alarm;	/* End of alarm list */
 static Alarm_Entry* free_list;	/* List of unused alarm entries */
 
 DECLARE_LOCK(alm_lock);		/* Mutex semaphore */
@@ -229,6 +235,27 @@ static void alm_int_handler (int arg);
 
 /*+**************************************************************************
  *
+ * Function:	alm_get_stamp
+ *
+ * Description:	Returns a time stamp from the alarm timer (32 bit;
+ *              1 us resolution)
+ *
+ * Arg(s) In:	None.
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	Time stamp value.
+ *
+ **************************************************************************-*/
+
+unsigned long alm_get_stamp (void)
+{
+   return(*MCC_TIMER4_CNT);
+}
+
+
+/*+**************************************************************************
+ *
  * Function:	alm_discard
  *
  * Description:	Put an alarm from the alarm list into the free list.
@@ -244,8 +271,9 @@ static void alm_int_handler (int arg);
 
 void alm_discard (Alarm_Entry* id)
 {
-   register Alarm_Entry* last_p = NULL;
+   register Alarm_Entry* last_p = last_alarm;
    register Alarm_Entry* act_p  = alarm_list;
+   char found = FALSE;
 
    ALM_DBG(5, "Entering alm_discard.");
 
@@ -255,25 +283,32 @@ void alm_discard (Alarm_Entry* id)
    }
 
    do {
-      if (act_p == id) break;
+      if (act_p == id) {
+	 found = TRUE;
+	 break;
+      }
       
       last_p = act_p;		/* Go to next element */
       act_p  = act_p->next_p;
       
-   } while (act_p != NULL);
+   } while (act_p != alarm_list);
 
-   if (act_p == NULL) {
+   if (!found) {
       ALM_DBG(3, "alm_discard: specified alarm not found.");
       return;	/* Alarm not found */
    }
    
    ASSERT_STRUC(act_p, Alarm_Entry);
 
-   if (last_p != NULL)		/* Take alarm out of alarm list */
+   if (act_p == last_p) {	/* Only one alarm left */
+      ALM_PRF(3, ("alm_discard: alarm list is now empty.\n"));
+      last_alarm = NULL;
+      alarm_list = NULL;
+   } else {			/* Take alarm out of alarm list */
       last_p->next_p = act_p->next_p;
-   else
-      alarm_list = act_p->next_p;
-
+      if (act_p == alarm_list) alarm_list = act_p->next_p;
+   }
+   
    act_p->next_p = free_list;	/* Put unused entry into free list */
    free_list = act_p;
 
@@ -300,20 +335,23 @@ void alm_discard (Alarm_Entry* id)
 
 void alm_setup (unsigned long delay)
 {
+   register int lock_key;
+   
    ALM_DBG(5, "Entering alm_setup.");
 
    status.running = TRUE;	/* Set running flag */
 
+   lock_key = intLock();
+				/* Set the timer compare value */
+   *MCC_TIMER4_CMP = *MCC_TIMER4_CNT + 
+      (delay < INT_INHIBIT ? INT_INHIBIT : delay);
+
 				/* Reset & enable the alarm timer interrupt */
    *MCC_T4_IRQ_CR  = T4_IRQ_CR_IEN | T4_IRQ_CR_ICLR | ALARMCLOCK_LEVEL;
 
-				/* Set the timer period */
-   *MCC_TIMER4_CMP = (delay < INT_INHIBIT ? INT_INHIBIT : delay);
+   intUnlock(lock_key);
    
-   *MCC_TIMER4_CNT = 0;		       /* Reset the counter */
-   *MCC_TIMER4_CR  = TIMER4_CR_CEN;    /* Enable the timer */
-
-   ALM_PRF(4, ("alm_setup: counter set to %d.\n", delay));
+   ALM_PRF(4, ("alm_setup: counter set to %u.\n", delay));
    ALM_DBG(5, "Leaving alm_setup.");
 }
 
@@ -339,7 +377,6 @@ void alm_stop (void)
 
    if (status.running) {
       *MCC_T4_IRQ_CR = 0;	/* Disable interrupts */
-      *MCC_TIMER4_CR = 0;	/* and disable counter */
       status.running = FALSE;
       ALM_DBG(4, "alm_stop: counter stopped.");
    }
@@ -367,27 +404,39 @@ void alm_stop (void)
 
 void alm_check (void)
 {
-   ts48_Stamp ts_now, ts_diff;
+   register unsigned long ts;
+   char found;
 
-   ts48_get_stamp(&ts_now);	/* Wake up the next one if due */
+
+   do {
+      found = FALSE;
+      ts = alm_get_stamp() - last_checked;
 
 				/* Check for alarms due */
-   while ((alarm_list != NULL) &&
-	  TS48_GE(ts_now, alarm_list->time_due)) {
+      while ((alarm_list != NULL) &&
+	     (ts >= alarm_list->time_due - last_checked)) {
 
-      ASSERT_STRUC(alarm_list, Alarm_Entry);
+	 found = TRUE;
 
-      sem_post(alarm_list->sem_p); /* Post the semaphore */
-      ALM_PRF(3, ("alm_check: alarm %p posted.\n", alarm_list));
+	 ASSERT_STRUC(alarm_list, Alarm_Entry);
 
-      alm_discard(alarm_list);	/* Cancel the active alarm */
-
-      ts48_get_stamp(&ts_now);	/* Wake up the next one if due */
-   } 
+	 if (alarm_list->is_new) { /* This one is for the next round */
+	    alarm_list->is_new = FALSE;
+	    alarm_list = alarm_list->next_p;
+	    ALM_PRF(3, ("alm_check: alarm %p ignored.\n", alarm_list));
+	 } else {
+	    sem_post(alarm_list->sem_p); /* Post the semaphore */
+	    ALM_PRF(3, ("alm_check: alarm %p posted.\n", alarm_list));
+	    
+	    alm_discard(alarm_list);	/* Cancel the active alarm */
+	 }
+      }
+      last_checked += ts;
+   } while (found);
 
    if (alarm_list == NULL) {    /* No more alarms */
 
-      alm_stop();
+      alm_stop(); 
       ALM_DBG(3, "alm_check: no more alarms, timer stopped.");
 
    } else {
@@ -395,11 +444,11 @@ void alm_check (void)
       ASSERT_STRUC(alarm_list, Alarm_Entry);
 
 				/* Set up alarm for first in line */
-      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
-      alm_setup(ts_diff.low);
+      ts = alarm_list->time_due - last_checked;
+      alm_setup(ts);
 
       ALM_PRF(3, ("alm_check: timer set up for next alarm (%p) in %u us.\n",
-		  alarm_list, ts_diff.low));
+		  alarm_list, ts));
    }
 }
 
@@ -427,13 +476,11 @@ void alm_int_handler (int arg)
    int_context = TRUE;
 #endif
 
-   *MCC_T4_IRQ_CR |= T4_IRQ_CR_ICLR;	/* acknowledge timer interrupt */
+   *MCC_T4_IRQ_CR |= T4_IRQ_CR_ICLR; 	/* acknowledge timer interrupt */
 
    if (status.in_use) {		/* User call is active */
 
       status.woke_up = TRUE;
-      alm_stop();
-
       ALM_DBG(3, "Handler woke up.");
 
    } else {			/* No users around */
@@ -477,10 +524,13 @@ alm_init (void)
    if (INIT_LOCK(alm_lock)) {	/* Init mutex semaphore */
       return(-1);
    }
-   ts48_init();
 				/* Connect interrupt handler */
    (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
 		      alm_int_handler, NULL);
+
+   *MCC_TIMER4_CNT = 0;		/* Reset the timer */
+				/* Enable the timer */
+   *MCC_TIMER4_CR  = TIMER4_CR_CEN;
 
    return(0);
 }
@@ -512,18 +562,21 @@ alm_start (
    register Alarm_Entry* last_p;
    register Alarm_Entry* act_p;
    Alarm_Entry* new_p;
-   ts48_Stamp   ts_now, ts_diff;
+   unsigned long ts_due, ts_now, ts_ref;
    unsigned long i;
+   char moved;
 
    ALM_DBG(5, "Entering alm_start.");
 
    LOCK(alm_lock);
    status.in_use = TRUE;
+
 				/* Is the free list empty? */
    if (free_list == NULL) {
       ALM_DBG(4, "alm_start: free list is empty.");
 				/* Get a new chunk of nodes */
       free_list = (Alarm_Entry*) calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
+
       if (free_list == NULL) {	/* calloc error */
 	 status.in_use = FALSE;
 	 UNLOCK(alm_lock);
@@ -532,81 +585,106 @@ alm_start (
       }
 				/* and initialize it */
       status.entries += LIST_CHUNK_SIZE;
+
       for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
 	 free_list[i].next_p = &free_list[i+1];
 	 SET_MAGIC(&free_list[i], Alarm_Entry);
       }
+
       free_list[LIST_CHUNK_SIZE - 1].next_p = NULL;
       SET_MAGIC(&free_list[LIST_CHUNK_SIZE - 1], Alarm_Entry);
 
       ALM_DBG(3, "alm_start: new list nodes allocated.");
    }
 
-   ts48_get_stamp(&ts_now);
-   ts48_add_us(&ts_now, delay);
-   
+
    new_p = free_list;		/* Take first entry from free list */
    free_list = free_list->next_p;
    
    ASSERT_STRUC(new_p, Alarm_Entry);
 
-   new_p->time_due = ts_now;	/* Fill it up */
+   ts_now = alm_get_stamp();	/* Calculate time due */
+   ts_due = ts_now + (delay > INT_SUBTRACT ? (delay - INT_SUBTRACT) : 0);
+
+   new_p->time_due = ts_due;	/* Fill the alarm entry */
    new_p->sem_p    = user_sem_p;
    new_p->next_p   = NULL;
+   if ((ts_due - last_checked <  ts_now - last_checked) &&
+       (ts_due - last_checked >= alarm_list->time_due - last_checked))
+      new_p->is_new = TRUE;
+   else
+      new_p->is_new = FALSE;
 
-   ALM_PRF(3,("alm_start: new alarm (%p) created: due at %d/%u.\n",
-	      new_p, new_p->time_due.high, new_p->time_due.low));
+   ALM_PRF(3,("alm_start: new alarm (%p) created: due at %u.\n",
+	      new_p, new_p->time_due));
    
 				/* Sort it into alarm list */
-   last_p = NULL;
+   last_p = last_alarm;
    act_p  = alarm_list;
 
    if (act_p == NULL) {		/* Empty alarm list */
-      alarm_list = new_p;
+      alarm_list    = new_p;	/* Whow */
+      new_p->next_p = new_p;
+      last_alarm    = new_p;
       ALM_DBG(4, "alm_start: alarm list was empty - new alarm is first.");
+
    } else {
 
-      do {			/* Sweep through alarm list */
-	 if (TS48_LT(ts_now, act_p->time_due))
-	    break;
+      /* Sorting into alarm list is done with relative delays;
+	 reference is now or alarm_list->time_due (whichever is older) */
+      if (ts_now - last_checked > alarm_list->time_due - last_checked)
+	 ts_ref = alarm_list->time_due;
+      else
+	 ts_ref = ts_now;
+      
+      ts_due  -= ts_ref;	/* Make time due relative */
 
+      moved = FALSE;
+				/* Sweep through alarm list */
+      while (ts_due > (act_p->time_due - ts_ref)) {
+	 moved  = TRUE;
 	 last_p = act_p;	     /* Go to next element */
 	 act_p  = act_p->next_p;
+	 if (act_p == alarm_list) break;
+      }
 
-      } while (act_p != NULL);
-
-      new_p->next_p = act_p;	     /* Insert new element */
-      if (last_p == NULL)
+      new_p->next_p  = act_p;	     /* Insert new element */
+      last_p->next_p = new_p;
+				     /* Not moved? This is new head */
+      if (!moved) {
 	 alarm_list = new_p;
-      else
-	 last_p->next_p = new_p;
-
-      ALM_PRF(4, ("alm_start: new alarm is before %p.\n", act_p));
+	 ALM_PRF(4, ("alm_start: new alarm is first (before %p).\n", act_p));
+      } else if (act_p == alarm_list) {
+	 last_alarm = new_p;
+	 ALM_PRF(4, ("alm_start: new alarm is last (after %p).\n", last_p));
+      } else {
+	 ALM_PRF(4, ("alm_start: new alarm is between %p and %p.\n",
+		     last_p, act_p));
+      }
    }
 
-   if (status.woke_up) {	/* The timer interrupted */
-      status.woke_up = FALSE;
-
-      ALM_DBG(3, "alm_start: int handler was called.");
-
-      alm_check();		/* Check for and post alarms due */
-
-   } else if (alarm_list == new_p) { /* First list element changed */
-
-      alm_stop();
+   if (alarm_list == new_p) { /* First list element changed */
 
       ASSERT_STRUC(alarm_list, Alarm_Entry);
 
-				/* Wake up the next one if due */
-      ts48_get_stamp(&ts_now);
-      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
-      alm_setup(ts_diff.low);
+				/* Set up the next alarm */
+      ts_due = alarm_list->time_due - ts_now;
+      alm_setup(ts_due);
 
-      ALM_PRF(3, ("alm_start: next alarm (%p) set up (in %d us).\n",
-		  alarm_list, ts_diff.low));
+      ALM_PRF(3, ("alm_start: next alarm (%p) set up (in %u us).\n",
+		  alarm_list, ts_due));
    }
 
-   status.in_use = FALSE;
+   do {				/* The timer interrupted */
+      status.in_use  = TRUE;
+      status.woke_up = FALSE;
+
+      ALM_DBG(3, "alm_start: int handler was called.");
+      alm_check();		/* Check for and post alarms due */
+
+      status.in_use  = FALSE;
+   } while (status.woke_up);
+
    UNLOCK(alm_lock);
 
    ALM_DBG(5, "Leaving alm_start.");
@@ -632,7 +710,7 @@ void
 alm_cancel (alm_ID id)
 {
    register Alarm_Entry* act_p;
-   ts48_Stamp ts_now, ts_diff;
+   unsigned long ts_diff;
 
    ALM_DBG(5, "Entering alm_cancel.");
 
@@ -658,12 +736,11 @@ alm_cancel (alm_ID id)
 
 	 ASSERT_STRUC(alarm_list, Alarm_Entry);
 
-	 ts48_get_stamp(&ts_now);
-	 ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
+	 ts_diff = alarm_list->time_due - alm_get_stamp();
 
-	 alm_setup(ts_diff.low);
+	 alm_setup(ts_diff);
 	 ALM_PRF(3, ("alm_cancel: next alarm (%p) set up (in %d us).\n",
-		     alarm_list, ts_diff.low));
+		     alarm_list, ts_diff));
       }
 
    } else {			/* Not the running alarm */
@@ -672,15 +749,16 @@ alm_cancel (alm_ID id)
 
    }
 
-   if (status.woke_up) {	/* The timer interrupted */
+   do {				/* The timer interrupted */
+      status.in_use  = TRUE;
       status.woke_up = FALSE;
 
-      ALM_DBG(3, "alm_start: int handler was called.");
-
+      ALM_DBG(3, "alm_cancel: int handler was called.");
       alm_check();		/* Check for and post alarms due */
-   }
 
-   status.in_use = FALSE;
+      status.in_use  = FALSE;
+   } while (status.woke_up);
+
    UNLOCK(alm_lock);
    
    ALM_DBG(5, "Leaving alm_cancel.");
@@ -768,29 +846,48 @@ void almInfo (unsigned char verb)
 
    printf("Alarm Info\n"
 	  "----------\n"
-	  "Pending Alarms are:\n");
+	  "Last check was at %u; time now is %u; alarm ",
+	  last_checked,
+	  alm_get_stamp()
+      );
 
+   if (status.running)
+      printf("is ");
+   else
+      printf("is NOT ");
+   
+   printf("RUNNING;\npending Alarms are:\n"
+      );
+   
    LOCK(alm_lock);
    status.in_use = TRUE;
 
    act_p  = alarm_list;
 
-   while (act_p != NULL) {
-      i++;
+   if (act_p == NULL)
+      printf("NO ALARMS.\n");
+   else
+      do {
+	 i++;
 
-      if ((i-1) % 25 == 0)
-	 printf("No Time due         AlarmID  Semaphore\n"
-		"--------------------------------------\n");
+	 if ((i-1) % 25 == 0)
+	    printf("No N Time due   AlarmID  Semaphore\n"
+		   "----------------------------------\n");
 
-      printf("%2d %5d/%10u %p %p\n",
-	     i,
-	     act_p->time_due.high,
-	     act_p->time_due.low,
-	     act_p,
-	     act_p->sem_p
-	 );
-      act_p = act_p->next_p;
-   }
+	 printf("%2d ", i);
+
+	 if (act_p->is_new)
+	    printf("N ");
+	 else
+	    printf("  ");
+	 
+	 printf("%10u %p %p\n",
+		act_p->time_due,
+		act_p,
+		act_p->sem_p
+	    );
+	 act_p = act_p->next_p;
+      } while (act_p != alarm_list);
    
    printf("%d used out of %d allocated alarm entries (%d bytes).\n",
 	  i,
@@ -798,15 +895,16 @@ void almInfo (unsigned char verb)
 	  status.entries * sizeof(Alarm_Entry)
       );
 
-   if (status.woke_up) {	/* The timer interrupted */
+   do {				/* The timer interrupted */
+      status.in_use  = TRUE;
       status.woke_up = FALSE;
 
-      ALM_DBG(3, "alm_start: int handler was called.");
-
+      ALM_DBG(3, "almInfo: int handler was called.");
       alm_check();		/* Check for and post alarms due */
-   }
 
-   status.in_use = FALSE;
+      status.in_use  = FALSE;
+   } while (status.woke_up);
+
    UNLOCK(alm_lock);
 }
 #endif /* #ifdef ALM_DEBUG */

@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.2 $
- * $Date: 1996/05/22 14:09:44 $
+ * $Revision: 1.3 $
+ * $Date: 1996/06/03 20:18:34 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 1.3  1996/06/03 20:18:34  lange
+ * Alarms seem to work now (multiple bugs fixed).
+ *
  * Revision 1.2  1996/05/22 14:09:44  lange
  * New watchdog-like functionality.
  *
@@ -58,6 +61,9 @@ typedef void* alm_ID;
 
 extern int
 alm_init (void);	     /* Initialize library */
+
+extern unsigned long
+alm_get_stamp (void);	     /* Get a time stamp (1 us resolution) */
 
 extern alm_ID
 alm_start (		     /* Set up an alarm */
