@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.1 $
- * $Date: 1997/07/31 17:50:25 $
+ * $Revision: 2.2 $
+ * $Date: 1997/07/31 18:07:07 $
  *
  * $Author: lange $
  *
  * $Log: alm_mcc.c,v $
+ * Revision 2.2  1997/07/31 18:07:07  lange
+ * alm -> almLib
+ *
  * Revision 2.1  1997/07/31 17:50:25  lange
  * alm_init -> almInit, reflects mv162 cpu speed.
  *
@@ -48,7 +51,7 @@
 #include <drv/multi/mcchip.h>
 
 #include <debugmsg.h>
-#include <alm.h>
+#include <almLib.h>
 
 				/* Definitions for 25 MHz CPU */
 #define INT_INHIBIT_25  25ul	/* Minimum interrupt delay */
@@ -67,7 +70,7 @@
 /*+**************************************************************************
  *		Global Functions implemented here
  **************************************************************************-*/
-				/* These are declared in alm.h */
+				/* These are declared in almLib.h */
 #if 0
 /* Return a time stamp */
 unsigned long alm_get_stamp (void);
@@ -257,7 +260,7 @@ void alm_int_handler (int arg)
 long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.1 1997/07/31 17:50:25 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_mcc.c,v 2.2 1997/07/31 18:07:07 lange Exp $";
 
    DBG(5, "Entering almInit.");
 

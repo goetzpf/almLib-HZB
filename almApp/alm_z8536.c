@@ -19,12 +19,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.1 $
- * $Date: 1997/07/31 17:49:50 $
+ * $Revision: 2.2 $
+ * $Date: 1997/07/31 18:07:10 $
  *
  * $Author: lange $
  *
  * $Log: alm_z8536.c,v $
+ * Revision 2.2  1997/07/31 18:07:10  lange
+ * alm -> almLib
+ *
  * Revision 2.1  1997/07/31 17:49:50  lange
  * alm_init -> almInit.
  *
@@ -53,7 +56,7 @@
 #include <drv/multi/z8536.h>
 
 #include <debugmsg.h>
-#include <alm.h>
+#include <almLib.h>
 
 extern void logMsg(char*, ...);
 
@@ -68,7 +71,7 @@ static unsigned long ref_stamp = 0; /* Reference time stamp */
 /*+**************************************************************************
  *		Global Functions implemented here
  **************************************************************************-*/
-				/* These are declared in alm.h */
+				/* These are declared in almLib.h */
 #if 0
 /* Return a time stamp */
 unsigned long alm_get_stamp (void);
@@ -729,7 +732,7 @@ void alm_int_handler (int arg)
 long almInit (void)
 {
 static char
-rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.1 1997/07/31 17:49:50 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_z8536.c,v 2.2 1997/07/31 18:07:10 lange Exp $";
 
    register int lock_key;
    register unsigned char tmp;    /* Dummy */

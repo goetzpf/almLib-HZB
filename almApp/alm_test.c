@@ -13,12 +13,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.0 $
- * $Date: 1997/02/07 16:30:50 $
+ * $Revision: 2.1 $
+ * $Date: 1997/07/31 18:07:09 $
  *
  * $Author: lange $
  *
  * $Log: alm_test.c,v $
+ * Revision 2.1  1997/07/31 18:07:09  lange
+ * alm -> almLib
+ *
  * Revision 2.0  1997/02/07 16:30:50  lange
  * Changed interface; alm is standalone module now.
  *
@@ -33,7 +36,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.0 1997/02/07 16:30:50 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.1 1997/07/31 18:07:09 lange Exp $";
 
 
 #include <semaphore.h>
@@ -42,7 +45,7 @@ rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.0 1997/02/07 16:30:50 lange Exp $";
 
 extern void logMsg (char*, ...);
 
-#include <alm.h>
+#include <almLib.h>
 
 static sem_t lock, info_lock;
 static char init_d = FALSE;

@@ -6,7 +6,7 @@
  *
  * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
- * File:	alm.h
+ * File:	almLib.h
  *
  * Description:	Library package to implement a high resolution alarm clock.
  *		The mv162 implementation uses the timer 4 on the mvme162's
@@ -16,12 +16,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.1 $
- * $Date: 1997/07/31 17:47:33 $
+ * $Revision: 2.2 $
+ * $Date: 1997/07/31 18:07:05 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 2.2  1997/07/31 18:07:05  lange
+ * alm -> almLib
+ *
  * Revision 2.1  1997/07/31 17:47:33  lange
  * Changed alm_init to almInit.
  *
@@ -51,8 +54,8 @@
  **************************************************************************-*/
 
 
-#ifndef __ALM_H
-#define __ALM_H
+#ifndef __ALMLIB_H
+#define __ALMLIB_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,7 +80,7 @@ typedef void* alm_ID;		/* Opaque alarm handle type */
  **************************************************************************-*/
 
 extern long
-almInit (void);			/* Initialize library */
+almInit (void);		     /* Initialize library */
 
 extern unsigned long
 alm_get_stamp (void);	     /* Get a time stamp (1 us resolution) */
@@ -110,4 +113,4 @@ DBG_EXTERN(alm)		     /* Debug messages */
 }
 #endif
 
-#endif /* ifndef __ALM_H */
+#endif /* ifndef __ALMLIB_H */

@@ -6,7 +6,7 @@
  *
  * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
- * File:	alm.c
+ * File:	almLib.c
  *
  * Description:	Library package to implement a high resolution alarm clock.
  *		Contains the hardware inpependent parts of this library.
@@ -23,12 +23,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.1 $
- * $Date: 1997/07/31 17:50:23 $
+ * $Revision: 2.2 $
+ * $Date: 1997/07/31 18:07:03 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 2.2  1997/07/31 18:07:03  lange
+ * alm -> almLib
+ *
  * Revision 2.1  1997/07/31 17:50:23  lange
  * alm_init -> almInit, reflects mv162 cpu speed.
  *
@@ -67,7 +70,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.1 1997/07/31 17:50:23 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.2 1997/07/31 18:07:03 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -75,7 +78,7 @@ rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.1 1997/07/31 17:50:23 lange Exp $";
 #include <stdlib.h>
 
 #include <debugmsg.h>
-#include <alm.h>
+#include <almLib.h>
 
 #define LIST_CHUNK_SIZE 20	/* Number of elements in alarm list chunk */
 
