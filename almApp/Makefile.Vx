@@ -18,6 +18,8 @@ USR_INCLUDES += -I$(INSTALL_LOCATION)/include
 
 INC += almLib.h
 
+DBDINSTALL += almLib.LIBOBJS
+
 LIBNAME = almLib
 LIBOBJS += almLib.o
 
