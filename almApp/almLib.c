@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.1 $
- * $Date: 1996/05/20 11:54:57 $
+ * $Revision: 1.2 $
+ * $Date: 1996/05/22 14:06:11 $
  *
  * $Author: lange $
  *
  * $Log: almLib.c,v $
+ * Revision 1.2  1996/05/22 14:06:11  lange
+ * New watchdog-like functionality.
+ *
  * Revision 1.1  1996/05/20 11:54:57  lange
  * Changed name (to avoid EPICS name conflicts).
  *
@@ -33,7 +36,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.1 1996/05/20 11:54:57 lange Exp $";
+rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.2 1996/05/22 14:06:11 lange Exp $";
 
 
 #include <vxWorks.h>
@@ -63,40 +66,42 @@ rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.1 1996/05/20 11:54:57 lange Exp $";
 
 #ifdef ALM_DEBUG
 
-#include <stdio.h>
 #include <semaphore.h>
+
+extern void logMsg(char*, ...);
 
 #define ALM_DBG(verb, string) {				\
    if (verb <= dbg_level) {				\
-      sem_wait(&alm_dbg_lock);				\
-      printf(__FILE__ ":%d: %s\n", __LINE__, string);	\
-      sem_post(&alm_dbg_lock);				\
+      if (!int_context) sem_wait(&alm_dbg_lock);	\
+      logMsg(__FILE__ ":%d:\n", __LINE__);		\
+      logMsg("%s\n", string);				\
+      if (!int_context) sem_post(&alm_dbg_lock);	\
    }							\
 }
 
-#define ALM_PRF(verb, x) {			\
-   if (verb <= dbg_level) {			\
-      sem_wait(&alm_dbg_lock);			\
-      printf(__FILE__ ":%d: ", __LINE__);	\
-      printf x;					\
-      sem_post(&alm_dbg_lock);			\
-   }						\
+#define ALM_PRF(verb, x) {				\
+   if (verb <= dbg_level) {				\
+      if (!int_context) sem_wait(&alm_dbg_lock);	\
+      logMsg(__FILE__ ":%d:\n", __LINE__);		\
+      logMsg x;						\
+      if (!int_context) sem_post(&alm_dbg_lock);	\
+   }							\
 }
 
 #define ASSERT_STRUC(str, type) {				\
    if ((str)->magic1 != type##_MAGIC1)				\
       if (1 <= dbg_level) {					\
-	 sem_wait(&alm_dbg_lock);				\
-	 printf(__FILE__ ":%d: PANIC: " #type			\
+	 if (!int_context) sem_wait(&alm_dbg_lock);		\
+	 logMsg(__FILE__ ":%d: PANIC: " #type			\
 		" structure head corrupt.\n", __LINE__);	\
-	 sem_post(&alm_dbg_lock);				\
+	 if (!int_context) sem_post(&alm_dbg_lock);		\
       };							\
    if ((str)->magic2 != type##_MAGIC2)				\
       if (1 <= dbg_level) {					\
-	 sem_wait(&alm_dbg_lock);				\
-	 printf(__FILE__ ":%d: PANIC: " #type			\
+	 if (!int_context) sem_wait(&alm_dbg_lock);		\
+	 logMsg(__FILE__ ":%d: PANIC: " #type			\
 		" structure tail corrupt.\n", __LINE__);	\
-	 sem_post(&alm_dbg_lock);				\
+	 if (!int_context) sem_post(&alm_dbg_lock);		\
       };							\
 }
 
@@ -133,12 +138,14 @@ rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.1 1996/05/20 11:54:57 lange Exp $";
 #include <stdio.h>
 #define DECLARE_LOCK(name) static sem_t name
 #define INIT_LOCK(name) sem_init(&name, 0, 1)
-#if 1
+
+#ifdef ALM_DEBUG
+
 #define LOCK(name) {						\
    sem_wait(&name);						\
    if (4 <= dbg_level) {					\
       sem_wait(&alm_dbg_lock);					\
-      printf(__FILE__ ":%d: " #name " locked.\n", __LINE__);	\
+      logMsg(__FILE__ ":%d: " #name " locked.\n", __LINE__);	\
       sem_post(&alm_dbg_lock);					\
    }								\
 }
@@ -146,14 +153,16 @@ rcsid[] = "@(#)mCAN-timer: $Id: almLib.c,v 1.1 1996/05/20 11:54:57 lange Exp $";
    sem_post(&name);						\
    if (4 <= dbg_level) {					\
       sem_wait(&alm_dbg_lock);					\
-      printf(__FILE__ ":%d: " #name " unlocked.\n", __LINE__);	\
+      logMsg(__FILE__ ":%d: " #name " unlocked.\n", __LINE__);	\
       sem_post(&alm_dbg_lock);					\
    }								\
 }
 
 #else
+
 #define LOCK(name) sem_wait(&name)
 #define UNLOCK(name) sem_post(&name)
+
 #endif
 
 #endif /* ndef DECLARE_LOCK */
@@ -182,7 +191,8 @@ static struct
    unsigned int running : 1;	/* Counter running flag */
    unsigned int in_use  : 1;	/* Lists in use flag */
    unsigned int woke_up : 1;	/* Int handler was called flag */
-} status = {FALSE, FALSE, FALSE};
+   unsigned int entries : 8;	/* Used Alam_Entries */
+} status = {FALSE, FALSE, FALSE, 0};
 
 static Alarm_Entry* alarm_list;	/* List of pending alarms */
 static Alarm_Entry* free_list;	/* List of unused alarm entries */
@@ -191,7 +201,8 @@ DECLARE_LOCK(alm_lock);		/* Mutex semaphore */
 
 #ifdef ALM_DEBUG
 DECLARE_LOCK(alm_dbg_lock);	/* Declare debug semaphore */
-static char dbg_level = -1;	/* Debug level (default=none) */
+static char dbg_level   = -1;	/* Debug level (default=none) */
+static char int_context = FALSE; /* Flag for interrupt context */
 #endif
 
 
@@ -208,8 +219,11 @@ static void alm_setup (unsigned long delay);
 /* Stop (disable) the timer */
 static void alm_stop (void);
 
+/* Check for and post alarms due */
+static void alm_check (void);
+
 /* The alarm counter's interrupt handler */
-static void alm_int_handler (void);
+static void alm_int_handler (int arg);
 
 
 
@@ -263,7 +277,7 @@ void alm_discard (Alarm_Entry* id)
    act_p->next_p = free_list;	/* Put unused entry into free list */
    free_list = act_p;
 
-   ALM_PRF(3, ("alm_discard: took entry %p from alarm list to free list.",
+   ALM_PRF(3, ("alm_discard: alarm entry %p moved to free list.\n",
 	       act_p));
    ALM_DBG(5, "Leaving alm_discard.");
 }
@@ -287,10 +301,6 @@ void alm_discard (Alarm_Entry* id)
 void alm_setup (unsigned long delay)
 {
    ALM_DBG(5, "Entering alm_setup.");
-
-				/* Connect interrupt handler */
-   (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
-		      alm_int_handler, NULL);
 
    status.running = TRUE;	/* Set running flag */
 
@@ -338,6 +348,63 @@ void alm_stop (void)
 }
 
 
+
+/*+**************************************************************************
+ *
+ * Function:	alm_check
+ *
+ * Description:	Checks the alarm list for alarms due and posts them.
+ * 		Sets up the timer for next pending alarm.
+ *              Mutex must be locked when using this function.
+ *
+ * Arg(s) In:	None.
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	None.
+ *
+ **************************************************************************-*/
+
+void alm_check (void)
+{
+   ts48_Stamp ts_now, ts_diff;
+
+   ts48_get_stamp(&ts_now);	/* Wake up the next one if due */
+
+				/* Check for alarms due */
+   while ((alarm_list != NULL) &&
+	  TS48_GE(ts_now, alarm_list->time_due)) {
+
+      ASSERT_STRUC(alarm_list, Alarm_Entry);
+
+      sem_post(alarm_list->sem_p); /* Post the semaphore */
+      ALM_PRF(3, ("alm_check: alarm %p posted.\n", alarm_list));
+
+      alm_discard(alarm_list);	/* Cancel the active alarm */
+
+      ts48_get_stamp(&ts_now);	/* Wake up the next one if due */
+   } 
+
+   if (alarm_list == NULL) {    /* No more alarms */
+
+      alm_stop();
+      ALM_DBG(3, "alm_check: no more alarms, timer stopped.");
+
+   } else {
+
+      ASSERT_STRUC(alarm_list, Alarm_Entry);
+
+				/* Set up alarm for first in line */
+      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
+      alm_setup(ts_diff.low);
+
+      ALM_PRF(3, ("alm_check: timer set up for next alarm (%p) in %u us.\n",
+		  alarm_list, ts_diff.low));
+   }
+}
+
+
+
 /*+**************************************************************************
  *
  * Function:	alm_int_handler
@@ -354,78 +421,30 @@ void alm_stop (void)
  *
  **************************************************************************-*/
 
-void alm_int_handler (void)
+void alm_int_handler (int arg)
 {
-   ts48_Stamp ts_now, ts_diff;
-
 #ifdef ALM_DEBUG
-   int verb = dbg_level;
-
-   dbg_level = -1;
+   int_context = TRUE;
 #endif
 
    *MCC_T4_IRQ_CR |= T4_IRQ_CR_ICLR;	/* acknowledge timer interrupt */
-
-
-   logMsg("\nINTERRUPT CONTEXT:\n");
-
 
    if (status.in_use) {		/* User call is active */
 
       status.woke_up = TRUE;
       alm_stop();
 
+      ALM_DBG(3, "Handler woke up.");
+
    } else {			/* No users around */
 
-      do {
-	 ASSERT_STRUC(alarm_list, Alarm_Entry);
-
-	 sem_post(alarm_list->sem_p); /* Post the semaphore */
-
-
-	 logMsg("INT: Alarm posted.\n");
-	 
-
-	 alm_discard(alarm_list);     /* Cancel the active alarm */
-
-	 
-	 logMsg("INT: Alarm discarded.\n");
-	 
-
-	 ts48_get_stamp(&ts_now);     /* Wake up the next one if due */
-      } while ((alarm_list != NULL) &&
-	       TS48_GE(ts_now, alarm_list->time_due));
-
-      if (alarm_list == NULL) {    /* No more alarms */
-	 alm_stop();
-
-
-	 logMsg("INT: Alarm clock stopped.\n");
-
-
-	 return;
-      }
-
-      ASSERT_STRUC(alarm_list, Alarm_Entry);
-
-				/* Set up alarm for first in line */
-      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
-      alm_setup(ts_diff.low);
-
-
-      logMsg("INT: Alarm set up (in %d us).\n", ts_diff.low);
-      
+      alm_check();		/* Check for and post alarms */
 
    }
 
 #ifdef ALM_DEBUG
-   dbg_level = verb;
+   int_context = FALSE;
 #endif
-
-
-   logMsg("INTERRUPT CONTEXT END\n\n");
-   
-
 }
 
 
@@ -449,7 +468,7 @@ void alm_int_handler (void)
 int
 alm_init (void)
 {
-#ifdef LCAL_DEBUG
+#ifdef ALM_DEBUG
    if (INIT_LOCK(alm_dbg_lock)) { /* Init debug semaphore */
       return(-1);
    }
@@ -459,6 +478,9 @@ alm_init (void)
       return(-1);
    }
    ts48_init();
+				/* Connect interrupt handler */
+   (void) intConnect (INUM_TO_IVEC (MCC_INT_VEC_BASE + MCC_INT_TT4),
+		      alm_int_handler, NULL);
 
    return(0);
 }
@@ -487,8 +509,8 @@ alm_start (
    sem_t* user_sem_p
    )
 {
-   register Alarm_Entry* last_p = NULL;
-   register Alarm_Entry* act_p  = alarm_list;
+   register Alarm_Entry* last_p;
+   register Alarm_Entry* act_p;
    Alarm_Entry* new_p;
    ts48_Stamp   ts_now, ts_diff;
    unsigned long i;
@@ -509,11 +531,13 @@ alm_start (
 	 return(NULL);
       }
 				/* and initialize it */
+      status.entries += LIST_CHUNK_SIZE;
       for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
 	 free_list[i].next_p = &free_list[i+1];
 	 SET_MAGIC(&free_list[i], Alarm_Entry);
       }
-      SET_MAGIC(&free_list[i], Alarm_Entry);
+      free_list[LIST_CHUNK_SIZE - 1].next_p = NULL;
+      SET_MAGIC(&free_list[LIST_CHUNK_SIZE - 1], Alarm_Entry);
 
       ALM_DBG(3, "alm_start: new list nodes allocated.");
    }
@@ -530,10 +554,13 @@ alm_start (
    new_p->sem_p    = user_sem_p;
    new_p->next_p   = NULL;
 
-   ALM_PRF(3,("alm_start: new alarm (%p) created: due at %d/%d.\n",
+   ALM_PRF(3,("alm_start: new alarm (%p) created: due at %d/%u.\n",
 	      new_p, new_p->time_due.high, new_p->time_due.low));
    
 				/* Sort it into alarm list */
+   last_p = NULL;
+   act_p  = alarm_list;
+
    if (act_p == NULL) {		/* Empty alarm list */
       alarm_list = new_p;
       ALM_DBG(4, "alm_start: alarm list was empty - new alarm is first.");
@@ -558,42 +585,11 @@ alm_start (
    }
 
    if (status.woke_up) {	/* The timer interrupted */
+      status.woke_up = FALSE;
 
       ALM_DBG(3, "alm_start: int handler was called.");
 
-      do {
-	 ASSERT_STRUC(alarm_list, Alarm_Entry);
-
-	 sem_post(alarm_list->sem_p); /* Post the semaphore */
-	 ALM_PRF(3, ("alm_start: alarm %p posted.\n", alarm_list));
-
-	 alm_discard(alarm_list);     /* Cancel the active alarm */
-
-	 ts48_get_stamp(&ts_now);     /* Wake up the next one if due */
-      } while ((alarm_list != NULL) &&
-	       TS48_GE(ts_now, alarm_list->time_due));
-
-      if (alarm_list == NULL) {    /* No more alarms */
-	 ALM_DBG(3, "alm_start: no more alarms.");
-
-	 alm_stop();
-	 status.in_use = FALSE;
-	 UNLOCK(alm_lock);
-
-	 ALM_DBG(5, "Leaving alm_start.");
-	 return(NULL);
-      }
-
-      ASSERT_STRUC(alarm_list, Alarm_Entry);
-
-				/* Set up alarm for first in line */
-      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
-      alm_setup(ts_diff.low);
-
-      ALM_PRF(3, ("alm_start: next alarm (%p) set up (in %d us).\n",
-		  alarm_list, ts_diff.low));
-
-      status.woke_up = FALSE;
+      alm_check();		/* Check for and post alarms due */
 
    } else if (alarm_list == new_p) { /* First list element changed */
 
@@ -635,10 +631,15 @@ alm_start (
 void
 alm_cancel (alm_ID id)
 {
-   register Alarm_Entry* act_p  = alarm_list;
+   register Alarm_Entry* act_p;
    ts48_Stamp ts_now, ts_diff;
 
    ALM_DBG(5, "Entering alm_cancel.");
+
+   LOCK(alm_lock);
+   status.in_use = TRUE;
+
+   act_p  = alarm_list;
 
    if (!act_p) {
       ALM_DBG(3, "alm_cancel: Empty alarm list.");
@@ -649,24 +650,34 @@ alm_cancel (alm_ID id)
    if (act_p == id) {		/* Cancel the running alarm */
       alm_stop();
       ALM_PRF(3, ("alm_cancel: current alarm (%p) stopped.\n", id));
-   }
 
-   LOCK(alm_lock);
-   status.in_use = TRUE;
+      alm_discard(id);		/* Discard it */
 
-   alm_discard(id);
-
-   if (alarm_list != NULL) {	/* If there's another alarm left, */
+      if (alarm_list != NULL) {	/* If there's another alarm left, */
 				/* set up counter for new alarm */
 
-      ASSERT_STRUC(alarm_list, Alarm_Entry);
+	 ASSERT_STRUC(alarm_list, Alarm_Entry);
 
-      ts48_get_stamp(&ts_now);
-      ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
+	 ts48_get_stamp(&ts_now);
+	 ts_diff = ts48_sub(&(alarm_list->time_due), &ts_now);
 
-      alm_setup(ts_diff.low);
-      ALM_PRF(3, ("alm_cancel: next alarm (%p) set up (in %d us).\n",
-		  alarm_list, ts_diff.low));
+	 alm_setup(ts_diff.low);
+	 ALM_PRF(3, ("alm_cancel: next alarm (%p) set up (in %d us).\n",
+		     alarm_list, ts_diff.low));
+      }
+
+   } else {			/* Not the running alarm */
+
+      alm_discard(id);		/* Discard the alarm */
+
+   }
+
+   if (status.woke_up) {	/* The timer interrupted */
+      status.woke_up = FALSE;
+
+      ALM_DBG(3, "alm_start: int handler was called.");
+
+      alm_check();		/* Check for and post alarms due */
    }
 
    status.in_use = FALSE;
@@ -730,5 +741,72 @@ int almSetDebug (char verb)
 {
    dbg_level = verb;
    return(0);
+}
+
+
+
+/*+**************************************************************************
+ *
+ * Function:	almInfo
+ *
+ * Description:	Prints debug info about alarms.
+ *
+ * Arg(s) In:	verb  -  Verbosity level:
+ *                         0 = short
+ *                         1 = long
+ *
+ * Arg(s) Out:	None.
+ *
+ * Return(s):	None
+ *
+ **************************************************************************-*/
+
+void almInfo (unsigned char verb)
+{
+   register Alarm_Entry* act_p;
+   unsigned short i = 0;
+
+   printf("Alarm Info\n"
+	  "----------\n"
+	  "Pending Alarms are:\n");
+
+   LOCK(alm_lock);
+   status.in_use = TRUE;
+
+   act_p  = alarm_list;
+
+   while (act_p != NULL) {
+      i++;
+
+      if ((i-1) % 25 == 0)
+	 printf("No Time due         AlarmID  Semaphore\n"
+		"--------------------------------------\n");
+
+      printf("%2d %5d/%10u %p %p\n",
+	     i,
+	     act_p->time_due.high,
+	     act_p->time_due.low,
+	     act_p,
+	     act_p->sem_p
+	 );
+      act_p = act_p->next_p;
+   }
+   
+   printf("%d used out of %d allocated alarm entries (%d bytes).\n",
+	  i,
+	  status.entries,
+	  status.entries * sizeof(Alarm_Entry)
+      );
+
+   if (status.woke_up) {	/* The timer interrupted */
+      status.woke_up = FALSE;
+
+      ALM_DBG(3, "alm_start: int handler was called.");
+
+      alm_check();		/* Check for and post alarms due */
+   }
+
+   status.in_use = FALSE;
+   UNLOCK(alm_lock);
 }
 #endif /* #ifdef ALM_DEBUG */

@@ -14,17 +14,17 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.1 $
- * $Date: 1996/05/20 11:56:01 $
+ * $Revision: 1.2 $
+ * $Date: 1996/05/22 14:09:44 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 1.2  1996/05/22 14:09:44  lange
+ * New watchdog-like functionality.
+ *
  * Revision 1.1  1996/05/20 11:56:01  lange
  * Changed name (to avoid EPICS name conflicts).
- *
- * Revision 1.1  1996/04/23 17:44:05  lange
- * *** empty log message ***
  *
  * Copyright (c) 1996  Berliner Elektronenspeicherring-Gesellschaft
  *                           fuer Synchrotronstrahlung m.b.H.,
@@ -84,7 +84,7 @@ alm_freq (void);	     /* Return the alarm clock frequency */
 extern int almSetDebug (char verb);
 
 extern void			/* Print alarms */
-almInfo (unsigned short);
+almInfo (unsigned char);
 
 #endif
 
