@@ -1,5 +1,5 @@
 static char RcsId[]      =
-"@(#)$Id: alm_ppcDec.c,v 2.1 2004/06/22 09:22:17 luchini Exp $";
+"@(#)$Id: alm_ppcDec.c,v 2.2 2004/06/24 11:23:48 luchini Exp $";
 
 /*+*********************************************************************
  *
@@ -23,12 +23,15 @@ static char RcsId[]      =
  *
  * Author(s):  John Moore (Argon Engineering  vxWorks news group)
  *
- * $Revision: 2.1 $
- * $Date: 2004/06/22 09:22:17 $
+ * $Revision: 2.2 $
+ * $Date: 2004/06/24 11:23:48 $
  *
  * $Author: luchini $ Code from Till Straumann
  *
  * $Log: alm_ppcDec.c,v $
+ * Revision 2.2  2004/06/24 11:23:48  luchini
+ * call sysPciInLong/sysPciOutLong instad of sysPciRead32/sysPciWrite32
+ *
  * Revision 2.1  2004/06/22 09:22:17  luchini
  * powerPc timer chip alm routines
  *
@@ -79,8 +82,9 @@ static char RcsId[]      =
 /*+**************************************************************************
  *              External Prototype Declarations
  **************************************************************************-*/
-IMPORT void   sysPciWrite32(UINT32, UINT32);
-IMPORT void   sysPciRead32(UINT32, UINT32 *);
+ 
+IMPORT void   sysPciOutLong (UINT32, UINT32);
+IMPORT UINT32 sysPciInLong (UINT32);
 IMPORT UINT32 sysTimeBaseLGet(void);
 
 /*+**************************************************************************
@@ -187,7 +191,7 @@ void alm_setup(unsigned long delay)
     alm_status.running = TRUE;
 
     /* Direct interrupt at no one */
-    sysPciWrite32(dest_reg, 0);
+    sysPciOutLong(dest_reg, 0);
     EIEIO;                                  /* synchronize */
   
     /* 
@@ -201,11 +205,11 @@ void alm_setup(unsigned long delay)
      * value is 0x3ef148 (which is 33/8 MHz or 4.16Mhz). 
      */
     wt_val = TIMER_FREQ;
-    sysPciWrite32(freq_reg, wt_val);      /* set timer freq register  */
+    sysPciOutLong(freq_reg, wt_val);      /* set timer freq register  */
     EIEIO;                                /* force write to complete  */ 
 
     /* Verify that the write was successful */    
-    sysPciRead32(freq_reg,&rbk_val); 
+    rbk_val = sysPciInLong(freq_reg); 
     if ( wt_val != rbk_val ) 
        ALM_DEBUG_MSG(0,
                      "alm_setup: Set timer freq reg failed, wt=0x%x rbk=0x%x\n",
@@ -218,11 +222,11 @@ void alm_setup(unsigned long delay)
      */    
     level = alm_status.int_pri;
     wt_val = ((level<<16) | (TIMER3_INT_VEC));
-    sysPciWrite32(vec_pri_reg,wt_val);
+    sysPciOutLong(vec_pri_reg,wt_val);
     EIEIO;
 
     /* Verify that the write was successful */
-    sysPciRead32(vec_pri_reg,&rbk_val);
+    rbk_val = sysPciInLong(vec_pri_reg);
     rbk_val &= (PRIORITY_MASK | VECTOR_MASK);
     if ( wt_val != rbk_val ) 
       ALM_DEBUG_MSG(0,
@@ -231,11 +235,11 @@ void alm_setup(unsigned long delay)
 
     /* Direct the interrupt at processor 0 */
     wt_val = DESTINATION_CPU0;
-    sysPciWrite32(dest_reg, wt_val);
+    sysPciOutLong(dest_reg, wt_val);
     EIEIO;     /* force write to complete */
 
     /* Verify that the write was successful */
-    sysPciRead32(dest_reg,&rbk_val);            
+    rbk_val = sysPciInLong(dest_reg);            
     rbk_val &= DESTINATION_CPU_MASK;
     if ( wt_val != rbk_val )   
         ALM_DEBUG_MSG(0,
@@ -246,11 +250,11 @@ void alm_setup(unsigned long delay)
      * of microseconds and enable counting.
      */
     wt_val = (delay * 1000)/TIMER_PERIOD; /* (delay*1000)/240) */
-    sysPciWrite32(base_ct_reg,wt_val);
+    sysPciOutLong(base_ct_reg,wt_val);
     EIEIO;   /* synchronize */
 
     /* Verify that the write was successful */
-    sysPciRead32(base_ct_reg,&rbk_val);         /* read the timer basecount register */
+    rbk_val = sysPciInLong(base_ct_reg);         /* read the timer basecount register */
     rbk_val &= ~TIMER_INHIBIT;
     if ( wt_val != rbk_val )   
       ALM_DEBUG_MSG(0,
@@ -293,11 +297,11 @@ long alm_reset(int enb)
      */
     if ( !enb ) 
       wt_val |= TIMER_INHIBIT;  /* make sure to disable counting */
-    sysPciWrite32(base_ct_reg,wt_val);     
+    sysPciOutLong(base_ct_reg,wt_val);     
     EIEIO;   /* synchronize */
 
     /* Now, verify that the write was successful */
-    sysPciRead32(base_ct_reg,&rbk_val); 
+    rbk_val = sysPciInLong(base_ct_reg); 
     if ( wt_val != rbk_val ) {
       status = ERROR;
       ALM_DEBUG_MSG(0,
@@ -345,10 +349,9 @@ void alm_disable(void)
 
     lock_key = intLock();  
     if (alm_status.running) {
-        /* Set Count Inhibit in the Base Count register. 
-        sysPciRead32(base_ct_reg, &val); */
+        /* Set Count Inhibit in the Base Count register.*/
         val = TIMER_DISABLE;
-        sysPciWrite32(base_ct_reg, val);
+        sysPciOutLong(base_ct_reg, val);
         EIEIO;                                  /* synchronize */  
     }
     intUnlock(lock_key); 
@@ -396,7 +399,7 @@ long alm_enable(void)
     ALM_DEBUG_MSG(5, "alm_enable: Entering function.\n",0,0);
 
     /* Direct interrupt at no one */
-    sysPciWrite32(dest_reg, 0);
+    sysPciOutLong(dest_reg, 0);
     EIEIO;                                  /* synchronize */
 
     /* 
@@ -409,11 +412,11 @@ long alm_enable(void)
      */
     level = alm_status.int_pri;
     wt_val = ((level<<16) | (TIMER3_INT_VEC));
-    sysPciWrite32(vec_pri_reg,wt_val);
+    sysPciOutLong(vec_pri_reg,wt_val);
     EIEIO;  
  
     /* Now verify that the write succeeded. */
-    sysPciRead32(vec_pri_reg,&rbk_val);
+    rbk_val = sysPciInLong(vec_pri_reg);
     rbk_val &= (PRIORITY_MASK | VECTOR_MASK);
     if ( wt_val != rbk_val ) {
       status = ERROR;
@@ -423,7 +426,7 @@ long alm_enable(void)
     } 
     
     /* Direct interrupt at CPU 0 */
-    sysPciWrite32(dest_reg, DESTINATION_CPU0);
+    sysPciOutLong(dest_reg, DESTINATION_CPU0);
     EIEIO;                                  /* synchronize */
    
 
@@ -475,7 +478,7 @@ unsigned long alm_freq (void)
 void alm_int_ack(void)
 {
     /* Inhibit counting for this timer */
-    sysPciWrite32(base_ct_reg,TIMER_DISABLE);
+    sysPciOutLong(base_ct_reg,TIMER_DISABLE);
     EIEIO;
     return;   
 }
@@ -501,7 +504,7 @@ unsigned long alm_intVecGet(void)
     UINT32        rd_val=0;
     unsigned long vector=0; 
 
-    sysPciRead32(vec_pri_reg,&rd_val);   
+    rd_val = sysPciInLong(vec_pri_reg);   
     vector = rd_val & VECTOR_MASK;
     return(vector);
 }
@@ -527,7 +530,7 @@ int alm_intLevelGet(void)
     unsigned long level=0;
 
     /* read the timer vector/priority register */
-    sysPciRead32(vec_pri_reg,&rd_val);   
+    rd_val = sysPciInLong(vec_pri_reg);   
     level = (rd_val & PRIORITY_MASK) >> 16;
     return((int)level);
 }

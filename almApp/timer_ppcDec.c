@@ -1,4 +1,4 @@
-static char RcsId[]  = "@(#)$Id: timer_ppcDec.c,v 2.1 2004/06/22 09:21:49 luchini Exp $";
+static char RcsId[]  = "@(#)$Id: timer_ppcDec.c,v 2.2 2004/06/24 11:23:57 luchini Exp $";
 
 /*+*********************************************************************
  *
@@ -11,12 +11,15 @@ static char RcsId[]  = "@(#)$Id: timer_ppcDec.c,v 2.1 2004/06/22 09:21:49 luchin
  *
  * Author(s):  John Moore (Argon Engineering  vxWorks news group)
  *
- * $Revision: 2.1 $
- * $Date: 2004/06/22 09:21:49 $
+ * $Revision: 2.2 $
+ * $Date: 2004/06/24 11:23:57 $
  *
  * $Author: luchini $
  *
  * $Log: timer_ppcDec.c,v $
+ * Revision 2.2  2004/06/24 11:23:57  luchini
+ * call sysPciInLong/sysPciOutLong instad of sysPciRead32/sysPciWrite32
+ *
  * Revision 2.1  2004/06/22 09:21:49  luchini
  * powerPc timer chip test routines
  *
@@ -70,8 +73,8 @@ static char RcsId[]  = "@(#)$Id: timer_ppcDec.c,v 2.1 2004/06/22 09:21:49 luchin
  *              External Prototype Declarations
  **************************************************************************-*/
 
-IMPORT void   sysPciWrite32(UINT32, UINT32);
-IMPORT void   sysPciRead32(UINT32, UINT32 *);
+IMPORT void   sysPciOutLong(UINT32, UINT32);
+IMPORT UINT32 sysPciInLong(UINT32);
 IMPORT UINT32 sysTimeBaseLGet(void);
 
 /*+**************************************************************************
@@ -134,7 +137,7 @@ long timer_init(unsigned long delay)
     memset((void *)diff_time_a,0,sizeof(diff_time_a));
 
     /* First, disable the timer. */
-    sysPciWrite32(base_ct_reg,TIMER_DISABLE);
+    sysPciOutLong(base_ct_reg,TIMER_DISABLE);
     EIEIO;
     
     /* 
@@ -147,16 +150,16 @@ long timer_init(unsigned long delay)
      * (which is 66/8 MHz or 8.28 MHz). However, for the mv2400 the
      * value is 0x3ef148 (which is 33/8 MHz or 4.16Mhz). 
      */
-    sysPciWrite32(freq_reg, TIMER_FREQ);
+    sysPciOutLong(freq_reg, TIMER_FREQ);
     EIEIO;
 
     /* set the priority level and vector for timer #3 */
     val = PRIORITY_LVL15 | (TIMER3_INT_VEC);
-    sysPciWrite32(vec_pri_reg,val);
+    sysPciOutLong(vec_pri_reg,val);
     EIEIO;
 
     /* set the destination of the interrupt to be CPU 0 */
-    sysPciWrite32(dest_reg, DESTINATION_CPU0);
+    sysPciOutLong(dest_reg, DESTINATION_CPU0);
     EIEIO;
 
     /* connect the scenario tick routine to timer3 */
@@ -179,7 +182,7 @@ long timer_init(unsigned long delay)
       logMsg("\nStarting timer with a delay of %d microseconds\n",delay,0,0,0,0,0);
       val =  (delay * 1000)/TIMER_PERIOD;    /* (delay*1000)/240) */
       start_time = sysTimeBaseLGet();
-      sysPciWrite32( base_ct_reg, val);
+      sysPciOutLong( base_ct_reg, val);
       EIEIO;
       logMsg("\nSet base count register to %d counts\n",val,0,0,0,0,0);
     }
@@ -221,7 +224,7 @@ void timer_isr(void)
     if ( cnt < MAX_CNT )
       start_time = finish_time;
     else { 
-      sysPciWrite32(base_ct_reg,TIMER_DISABLE);
+      sysPciOutLong(base_ct_reg,TIMER_DISABLE);
       EIEIO;
       timer_running=FALSE;
       logMsg("Stop timer\n",0,0,0,0,0,0); 
@@ -296,7 +299,7 @@ UINT32 timer_delay_usec(unsigned long delay)
    UINT32  val=0; 
 
    val = delay * MICRO_SECOND;
-   sysPciWrite32(base_ct_reg, val);
+   sysPciOutLong(base_ct_reg, val);
    EIEIO;
    
    start_time = sysTimeBaseLGet();
@@ -335,7 +338,7 @@ UINT32 timer_delay_msec(unsigned long delay)
    UINT32  val=0; 
 
    val = delay * MILLI_SECOND;
-   sysPciWrite32(base_ct_reg, val);
+   sysPciOutLong(base_ct_reg, val);
    EIEIO;
    
    start_time = sysTimeBaseLGet();
@@ -368,11 +371,11 @@ long timer_start(void)
     UINT32 wt_val=0;
     UINT32 rd_val=0;
     
-    sysPciRead32(base_ct_reg,&rd_val);
+    rd_val = sysPciInLong(base_ct_reg);
 
     /* start counter by clearing inhibit bit */
     wt_val &= ~TIMER_INHIBIT;  
-    sysPciWrite32(base_ct_reg,wt_val);
+    sysPciOutLong(base_ct_reg,wt_val);
     EIEIO;   /* synchronize */
     return(status);   
 }
@@ -402,11 +405,11 @@ long timer_stop(void)
     UINT32 wt_val=0;
     UINT32 rd_val=0;
    
-    sysPciRead32(base_ct_reg,&rd_val);
+    rd_val = sysPciInLong(base_ct_reg);
 
    /* stop counting by setting inhibit bit */
     wt_val |= TIMER_INHIBIT;  
-    sysPciWrite32(base_ct_reg,wt_val);
+    sysPciOutLong(base_ct_reg,wt_val);
     EIEIO;   /* synchronize */
     return(status);
 }
@@ -436,9 +439,9 @@ long timer_int_enable(void)
     UINT32 wt_val=0;
     UINT32 rd_val=0;
 
-    sysPciRead32(vec_pri_reg,&rd_val);
+    rd_val = sysPciInLong(vec_pri_reg);
     wt_val = rd_val & ~INT_MASK_BIT;
-    sysPciWrite32(vec_pri_reg,wt_val);
+    sysPciOutLong(vec_pri_reg,wt_val);
     return(status);   
 }
 
@@ -467,9 +470,9 @@ long timer_int_disable(void)
     UINT32 wt_val=0;
     UINT32 rd_val=0;
 
-    sysPciRead32(vec_pri_reg,&rd_val);
+    rd_val = sysPciInLong(vec_pri_reg);
     wt_val = rd_val | INT_MASK_BIT;
-    sysPciWrite32(vec_pri_reg,wt_val);
+    sysPciOutLong(vec_pri_reg,wt_val);
     return(status);  
 }
 
@@ -496,7 +499,7 @@ unsigned long timer_rd_ccnt(void)
     UINT32 toggle=0;
     UINT32 cnt=0;
 
-    sysPciRead32(cur_cnt_reg,&rd_val);
+    rd_val = sysPciInLong(cur_cnt_reg);
     toggle = rd_val >> 31;
     cnt = rd_val & ~TIMER_INHIBIT;
     logMsg("Current count is 0x%lx (%ld)  Inhibit state=%d)\n",
@@ -529,7 +532,7 @@ unsigned long timer_rd_bcnt(void)
     UINT32 cnt_inhibit=0;
     UINT32 cnt=0;
     
-    sysPciRead32(base_ct_reg,&rd_val);
+    rd_val = sysPciInLong(base_ct_reg);
     cnt_inhibit = rd_val >> 31;
     cnt = rd_val & ~TIMER_INHIBIT;
     logMsg("Base count is 0x%lx (%ld)  (%s)\n",
@@ -563,7 +566,7 @@ unsigned long timer_rd_vec(void)
     UINT32 vector=0;
     UINT32 level=0;
     
-    sysPciRead32(vec_pri_reg,&rd_val);
+    rd_val = sysPciInLong(vec_pri_reg);
     vector = rd_val & VECTOR_MASK;
     level  = (rd_val & PRIORITY_MASK) >> 16;
     logMsg("Interrupt vector is 0x%lx (%ld) level is %ld\n",
@@ -592,7 +595,7 @@ unsigned long timer_rd_dest(void)
 {
     UINT32 rd_val=0;
 
-    sysPciRead32(dest_reg,&rd_val);
+    rd_val = sysPciInLong(dest_reg);
     return(rd_val);
 }
 
@@ -617,7 +620,7 @@ unsigned long timer_rd_freq(void)
 {
     UINT32 rd_val=0;
 
-    sysPciRead32(freq_reg,&rd_val);    
+    rd_val = sysPciInLong(freq_reg);    
     return(rd_val);
 }
 
@@ -652,7 +655,7 @@ long timer_set_delay(unsigned long delay)
    UINT32  wt_val=0; 
 
    wt_val = delay * MICRO_SECOND;
-   sysPciWrite32(base_ct_reg,wt_val);
+   sysPciOutLong(base_ct_reg,wt_val);
    EIEIO;
    logMsg("Resetting timer delay to %d microseconds\n",delay,0,0,0,0,0);       
    return(status);
@@ -688,12 +691,12 @@ long timer_set_freq(void)
     * Set the timer frequency register to 4.12 MHz
     * Note: PCI bus clock, ie: 33Mhz/8=4.12MHz
     */
-    sysPciWrite32(freq_reg,wt_val);       /* set timer freq register  */
+    sysPciOutLong(freq_reg,wt_val);       /* set timer freq register  */
     EIEIO;                                /* force write to complete  */ 
     logMsg("Set timer frequency to %d.\n",wt_val,0,0,0,0,0);
 
     /* Verify that the write was successful */    
-    sysPciRead32(freq_reg,&rbk_val);      /* read timer freq register */
+    rbk_val = sysPciInLong(freq_reg);      /* read timer freq register */
     if ( wt_val != rbk_val ) {
         status = ERROR;
         logMsg("Set timer freq reg failed, wt=x%0x rbk=0x%x.\n",
@@ -740,8 +743,8 @@ long timer_set_bcnt(unsigned long val,int enb)
     UINT32 rd_val=0;
     
     /* Set timer counter and let it fly */
-    sysPciWrite32(base_ct_reg,val);
-    sysPciRead32(base_ct_reg,&rd_val);
+    sysPciOutLong(base_ct_reg,val);
+    rd_val = sysPciInLong(base_ct_reg);
     if ( val != rd_val ) {
         logMsg("Base count write failed wt=0x%x rbk=0x%x\n",
                val,rd_val,0,0,0,0);
