@@ -13,8 +13,8 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.4 $
- * $Date: 2004/06/22 11:58:34 $
+ * $Revision: 2.5 $
+ * $Date: 2004/07/13 13:15:28 $
  *
  * $Author: luchini $
  *
@@ -51,15 +51,15 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.4 2004/06/22 11:58:34 luchini Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.5 2004/07/13 13:15:28 luchini Exp $";
 
 
-#include <semaphore.h>
+#include <semaphore.h>      /* for SEM_ID,sem_init(),sem_wait(),etc     */
 #include <stdio.h>
-#include <taskLib.h>
-#include <alm.h>            /* for alm_get_stamp() prototype */
-#include <almLib.h>         /* for alm_start() prototype     */
-#include <logLib.h>         /* for logMsg() prototype        */
+#include <taskLib.h>        /* for taskSpawn() prototype                */
+#include "almLib.h"         /* for alm_start(),alm_get_stamp() prototype*/
+#include <logLib.h>         /* for logMsg() prototype                   */
+
 
 static sem_t lock, info_lock;
 static char init_d = FALSE;
@@ -324,6 +324,9 @@ aSet (unsigned long delay)
  * Author(s):	Ralph Lange
  *
  * $Log: alm_test.c,v $
+ * Revision 2.5  2004/07/13 13:15:28  luchini
+ * Add comments for header files
+ *
  * Revision 2.4  2004/06/22 11:58:34  luchini
  * Get rid of logMsg() warnings
  *
