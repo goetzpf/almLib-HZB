@@ -13,10 +13,10 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.3 $
- * $Date: 1999/09/08 18:03:10 $
+ * $Revision: 2.4 $
+ * $Date: 2004/06/22 11:58:34 $
  *
- * $Author: lange $
+ * $Author: luchini $
  *
  * Revision log at end of file
  *
@@ -51,16 +51,15 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.3 1999/09/08 18:03:10 lange Exp $";
+rcsid[] = "@(#)almLib: $Id: alm_test.c,v 2.4 2004/06/22 11:58:34 luchini Exp $";
 
 
 #include <semaphore.h>
 #include <stdio.h>
 #include <taskLib.h>
-
-extern void logMsg (char*, ...);
-
-#include <almLib.h>
+#include <alm.h>            /* for alm_get_stamp() prototype */
+#include <almLib.h>         /* for alm_start() prototype     */
+#include <logLib.h>         /* for logMsg() prototype        */
 
 static sem_t lock, info_lock;
 static char init_d = FALSE;
@@ -154,7 +153,7 @@ a_finito()
    sem_wait(&lock);
    finish--;
    if (finish <= 0)
-      logMsg("--------------- Finished. ------------------\n");
+       logMsg("--------------- Finished. ------------------\n",0,0,0,0,0,0);
    sem_post(&lock);
 }
 
@@ -168,12 +167,12 @@ ala_t (int my_no, int cnt)
    long diff;
    
    if (sem_init(&sema, 0, 0)) {
-      logMsg("Sem_init failed.\n");
+       logMsg("Sem_init failed.\n",0,0,0,0,0,0);
       return(-1);
    }
 
    sem_wait(&lock);
-   logMsg ("Task %d started.\n", my_no);
+   logMsg ("Task %d started.\n", my_no,0,0,0,0,0);
    sem_post(&lock);
 
    i = my_no % 10;
@@ -183,7 +182,7 @@ ala_t (int my_no, int cnt)
       
 #if 0
       sem_wait(&lock);
-      logMsg("Task %d: waiting %u us ...\n", my_no, inf_p->delay);
+      logMsg("Task %d: waiting %u us ...\n", my_no, inf_p->delay,0,0,0,0);
       sem_post(&lock);
 #endif
 
@@ -198,7 +197,7 @@ ala_t (int my_no, int cnt)
 
       if (diff < 0)
 	 logMsg("Delay: %lu Delta: %lu Diff: %ld.\n",
-		inf_p->delay, delta, diff);
+		inf_p->delay, delta, diff,0,0,0);
 
       sem_wait(&info_lock);
 
@@ -229,12 +228,12 @@ stamp_t (int my_no, int cnt)
    long diff;
    
    if (sem_init(&sema, 0, 0)) {
-      logMsg("Sem_init failed.\n");
+       logMsg("Sem_init failed.\n",0,0,0,0,0,0);
       return(-1);
    }
 
    sem_wait(&lock);
-   logMsg ("Task %d started.\n", my_no);
+   logMsg ("Task %d started.\n", my_no,0,0,0,0,0);
    sem_post(&lock);
 
    for (j = 0; j < cnt; j++) {
@@ -248,7 +247,7 @@ stamp_t (int my_no, int cnt)
 
       if (diff < 0)
 	 logMsg("ERROR - T1: %lu T2: %lu Diff: %ld.\n",
-		t1, t2, diff);
+		t1, t2, diff,0,0,0);
 
    }
    a_finito();
@@ -301,7 +300,7 @@ aSet (unsigned long delay)
    sem_t sema;
 
    if (sem_init(&sema, 0, 0)) {
-      logMsg("Sem_init failed.\n");
+       logMsg("Sem_init failed.\n",0,0,0,0,0,0);
       return;
    }
 
@@ -325,6 +324,9 @@ aSet (unsigned long delay)
  * Author(s):	Ralph Lange
  *
  * $Log: alm_test.c,v $
+ * Revision 2.4  2004/06/22 11:58:34  luchini
+ * Get rid of logMsg() warnings
+ *
  * Revision 2.3  1999/09/08 18:03:10  lange
  * Fixed more Tornado101 warnings
  *
