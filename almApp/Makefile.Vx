@@ -4,55 +4,22 @@ include $(TOP)/config/CONFIG_APP
 #-----------------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 
-# for alarm debug messages define "DEBUGMSG"
-#USR_CFLAGS += -D$(T_A) -DDEBUGMSG
+# for almLib.c debug messages define "DEBUGMSG"
+#USR_CFLAGS += -DDEBUGMSG
 USR_CFLAGS += -D$(T_A)
 
 # Install include files
-INC += alm.h
 INC += almLib.h
-INC += alm_debug.h
-INC += alm_mcc.h
-INC += alm_ppcDec.h
-INC += timer_ppcDec.h
 
 # Install lib object and load object files
 DBDINSTALL = almLib.LIBOBJS almLib.LDOBJS
-
-# Add include directories to path
-USR_INCLUDES += -I $(VX_DIR_YES)/target/config/all
 
 # Compile source
 SRCS.c += ../almLib.c
 SRCS.c += ../alm_test.c
 
-ifeq ($(T_A),mv162)
-USR_INCLUDES += -I $(VX_DIR_YES)/target/config/$(T_A)
-SRCS.c  += ../alm_mcc.c
-endif
-
-ifeq ($(T_A),ppc604_long)
-USR_INCLUDES += -I $(VX_DIR_YES)/target/config/mv2400
-SRCS.c  += ../alm_ppcDec.c
-SRCS.c  += ../timer_ppcDec.c
-endif
-
-ifeq ($(T_A),ppc603)
-USR_INCLUDES += -I $(VX_DIR_YES)/target/config/mv2100
-SRCS.c  += ../alm_ppcDec.c
-SRCS.c  += ../timer_ppcDec.c
-endif
-
 LIBOBJS += almLib.o
 LIBOBJS += alm_test.o
-
-ifneq ($(T_A),mv162)
-LIBOBJS += alm_ppcDec.o
-LIBOBJS += timer_ppcDec.o
-PROD    += timer_ppcDec.o
-else
-LIBOBJS += alm_mcc.o
-endif
 
 TARGETS = alm_test.o
 PROD += alm_test.o
