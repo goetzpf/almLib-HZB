@@ -14,12 +14,15 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 1.3 $
- * $Date: 1996/06/03 20:18:34 $
+ * $Revision: 1.4 $
+ * $Date: 1996/10/29 13:16:17 $
  *
  * $Author: lange $
  *
  * $Log: almLib.h,v $
+ * Revision 1.4  1996/10/29 13:16:17  lange
+ * First version to go into EPICS tree (locally).
+ *
  * Revision 1.3  1996/06/03 20:18:34  lange
  * Alarms seem to work now (multiple bugs fixed).
  *
@@ -76,7 +79,7 @@ alm_cancel (		     /* Cancel a running alarm */
    alm_ID id			/* ID of alarm to cancel */
    );
 
-extern UINT32
+extern unsigned long
 alm_freq (void);	     /* Return the alarm clock frequency */
 
 
