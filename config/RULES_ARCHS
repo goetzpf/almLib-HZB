@@ -1,0 +1,22 @@
+#RULES_ARCHS
+
+# Additions bfr 2002-04-12:
+#   Automatic search for *.LDOBJS under all <support-top>/dbd dirs
+#   See also additional lines in convertRelease.pl
+
+# Add the correct makefile include path to MAKE variable.
+# This avoids changing the rules in base.
+MAKE += $(MAKEFLAGS.$(archPart))
+
+include $(EPICS_BASE)/config/RULES_ARCHS
+
+# Collect pathnames of CONFIG_APP_INCLUDE files under $(TOP)/config/O.* dirs
+# where X are the cross compiler architectures.
+# Thus, only targets declared in Makefile.Vx are affected.
+CROSS_CONFIG_APP_INCLUDES = $(strip $(foreach crossDir,$(crossDirs),\
+  $(TOP)/config/$(crossDir)/CONFIG_APP_INCLUDE))
+
+# To avoid make warning, -include only if CONFIG_APP_INCLUDES is not empty.
+ifneq (,$(CROSS_CONFIG_APP_INCLUDES))
+-include $(CROSS_CONFIG_APP_INCLUDES)
+endif
