@@ -14,19 +14,18 @@ endif
 
 USR_CFLAGS += -D$(T_A)
 
-USR_INCLUDES += -I$(INSTALL_LOCATION)/include
+INC = almLib.h
 
-INC += almLib.h
+DBDINSTALL = almLib.LIBOBJS almLib.LDOBJS
 
-DBDINSTALL += almLib.LIBOBJS
+SRCS.c = almLib.c
+
+LIBOBJS = almLib.o
 
 LIBNAME = almLib
-LIBOBJS += almLib.o
 
-TARGETS += alm_test.o
-#PROD += alm_test.o
+TARGETS = alm_test.o
 
 include $(TOP)/config/RULES.Vx
 #-----------------------------------------------
 #  ADD RULES AFTER THIS LINE
-almLib.o:: ../alm_mcc.c ../alm_z8536.c ../almLib.h
