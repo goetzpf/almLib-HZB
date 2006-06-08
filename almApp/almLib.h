@@ -16,10 +16,10 @@
  *
  * Author(s):	Ralph Lange
  *
- * $Revision: 2.6 $
- * $Date: 2004/07/13 13:14:24 $
+ * $Revision: 2.6.2.1 $
+ * $Date: 2006/06/08 12:43:58 $
  *
- * $Author: luchini $
+ * $Author: franksen $
  *
  * Revision log at end of file
  *
@@ -76,11 +76,13 @@ typedef void* alm_ID;		/* Opaque alarm handle type */
  *		Functions
  **************************************************************************-*/
 
+extern int almLibIsPrimitive;
+
 extern long
 almInit (                    /* Initialize the alarm library. */
    void
    );
- 
+
 extern alm_ID
 alm_start (		     /* Set up an alarm */
    unsigned long  delay,	/* Alarm delay in us */
@@ -214,6 +216,9 @@ alm_intLevelGet(
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.h,v $
+ * Revision 2.6.2.1  2006/06/08 12:43:58  franksen
+ * alternatively use an extremely simple implementation that can only be used by one task
+ *
  * Revision 2.6  2004/07/13 13:14:24  luchini
  * Add wrapper functions for low-level timer support
  *

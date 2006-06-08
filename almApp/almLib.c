@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9 2004/07/13 13:14:24 luchini Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9.2.1 2006/06/08 12:43:58 franksen Exp $";
 
 
 #include <vxWorks.h>          /* OK, ERROR                         */
@@ -68,6 +68,7 @@ rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9 2004/07/13 13:14:24 luchini Exp $";
 #include <string.h>           /* for memmove()                     */
 #include <debugmsg.h>         /* DBG_DECLARE,DBG_MSG,etc macros    */
 #include <logLib.h>           /* logMsg() prototype                */
+#include <epicsAssert.h>
 
 #include "alm.h"              /* for alm_init_symTbl() prototype  */
 #include "almLib.h"           /* alm_check() prototype            */
@@ -102,6 +103,8 @@ static Alarm_Entry     *last_alarm     = NULL;  /* End of alarm list            
 static Alarm_Entry     *free_list      = NULL;  /* List of unused alarm entries  */
 static alm_status_ts   *alm_status_ps  = NULL;  /* alarm status bitfield         */
 static alm_func_tbl_ts *alm_ps         = NULL;  /* alarm timer func symbol tbl   */ 
+
+int almLibIsPrimitive = TRUE;
 
  /*+**************************************************************************
  *		Parameter Definitions
@@ -376,6 +379,8 @@ void alm_check (void)
  *
  **************************************************************************-*/
 
+static sem_t *wake_up_sem;
+
 alm_ID
 alm_start (
    unsigned long  delay,
@@ -383,159 +388,166 @@ alm_start (
    unsigned long* cnt_p
    )
 {
-   register int          lock_key=0;
-   register Alarm_Entry* last_p=NULL;
-   register Alarm_Entry* act_p=NULL;
-   Alarm_Entry*          new_p=NULL;
-   unsigned long         ts_due=0;
-   unsigned long         ts_now=0;
-   unsigned long         ts_ref=0;
-   unsigned long         i=0;
-   char                  moved=FALSE;
-   
-
-   DBG(5, "Entering alm_start.");
-   
-   if ( !alm_ps || !alm_status_ps ) {
-     logMsg("alm_start: low-level alarm symbol table has not been initizlized. Call almInit().\n",
-             0,0,0,0,0,0);
-     DBG(5, "Leaving alm_start.");     
-     return(new_p);
-  }
-   
-   LOCK(alm_lock);
-
-   lock_key = intLock();
-   alm_status_ps->in_use = TRUE;
-   intUnlock(lock_key);
-				/* Is the free list empty? */
-   if (free_list == NULL) {
-      DBG(4, "alm_start: free list is empty.");
-				/* Get a new chunk of nodes */
-      free_list = (Alarm_Entry*)
-	 calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
-
-      if (free_list == NULL) {	/* calloc error */
-         lock_key = intLock();
-	 alm_status_ps->in_use = FALSE;
-         intUnlock(lock_key);
-	 UNLOCK(alm_lock);
-	 DBG(5, "Leaving alm_start.");
-	 return(NULL);
-      }
-				/* and initialize it */
-      lock_key = intLock();
-      alm_status_ps->entries += LIST_CHUNK_SIZE;
-      intUnlock(lock_key);
-
-      for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
-	 free_list[i].next_p = &free_list[i+1];
-	 SET_MAGIC(&free_list[i], Alarm_Entry);
-      }
-
-      free_list[LIST_CHUNK_SIZE - 1].next_p = NULL;
-      SET_MAGIC(&free_list[LIST_CHUNK_SIZE - 1], Alarm_Entry);
-
-      DBG(3, "alm_start: new list nodes allocated.");
-   }
-
-   new_p = free_list;		/* Take first entry from free list */
-   free_list = free_list->next_p;
-   
-   ASSERT_STRUC(new_p, Alarm_Entry);
-
-   ts_now = (*alm_ps->get_stamp)();    /* Calculate time due */
-   ts_due = ts_now + (delay > INT_SUBTRACT ? (delay - INT_SUBTRACT) : 0);
-
-   new_p->time_due = ts_due;	/* Fill the alarm entry */
-   new_p->sem_p    = sem_p;
-   new_p->cnt_p    = cnt_p;
-   new_p->next_p   = NULL;
-   if ((ts_due - last_checked <  ts_now - last_checked) &&
-       (ts_due - last_checked >= alarm_list->time_due - last_checked))
-      new_p->is_new = TRUE;
-   else
-      new_p->is_new = FALSE;
-
-   PRF(2,("alm_start: new alarm (%p) created: due at %u.\n",
-	      new_p, new_p->time_due));
-   
-				/* Sort it into alarm list */
-   last_p = last_alarm;
-   act_p  = alarm_list;
-
-   if (act_p == NULL) {		/* Empty alarm list */
-      alarm_list    = new_p;	/* Whow */
-      new_p->next_p = new_p;
-      last_alarm    = new_p;
-      DBG(4, "alm_start: alarm list was empty - new alarm is first.");
-
+   if (almLibIsPrimitive) {
+      assert(alm_ps);
+      assert(sem_p);
+      wake_up_sem = sem_p;
+      alm_ps->setup(delay);
+      return 0;
    } else {
+      register int          lock_key=0;
+      register Alarm_Entry* last_p=NULL;
+      register Alarm_Entry* act_p=NULL;
+      Alarm_Entry*          new_p=NULL;
+      unsigned long         ts_due=0;
+      unsigned long         ts_now=0;
+      unsigned long         ts_ref=0;
+      unsigned long         i=0;
+      char                  moved=FALSE;
 
-      /* Sorting into alarm list is done with relative delays;
-	 reference is now or alarm_list->time_due (whichever is older) */
-      if (ts_now - last_checked > alarm_list->time_due - last_checked)
-	 ts_ref = alarm_list->time_due;
+      DBG(5, "Entering alm_start.");
+
+      if ( !alm_ps || !alm_status_ps ) {
+        logMsg("alm_start: low-level alarm symbol table has not been initizlized. Call almInit().\n",
+                0,0,0,0,0,0);
+        DBG(5, "Leaving alm_start.");     
+        return(new_p);
+     }
+
+      LOCK(alm_lock);
+
+      lock_key = intLock();
+      alm_status_ps->in_use = TRUE;
+      intUnlock(lock_key);
+				   /* Is the free list empty? */
+      if (free_list == NULL) {
+         DBG(4, "alm_start: free list is empty.");
+				   /* Get a new chunk of nodes */
+         free_list = (Alarm_Entry*)
+	    calloc(LIST_CHUNK_SIZE, sizeof(Alarm_Entry));
+
+         if (free_list == NULL) {	/* calloc error */
+            lock_key = intLock();
+	    alm_status_ps->in_use = FALSE;
+            intUnlock(lock_key);
+	    UNLOCK(alm_lock);
+	    DBG(5, "Leaving alm_start.");
+	    return(NULL);
+         }
+				   /* and initialize it */
+         lock_key = intLock();
+         alm_status_ps->entries += LIST_CHUNK_SIZE;
+         intUnlock(lock_key);
+
+         for (i = 0; i < (LIST_CHUNK_SIZE - 1); i++) {
+	    free_list[i].next_p = &free_list[i+1];
+	    SET_MAGIC(&free_list[i], Alarm_Entry);
+         }
+
+         free_list[LIST_CHUNK_SIZE - 1].next_p = NULL;
+         SET_MAGIC(&free_list[LIST_CHUNK_SIZE - 1], Alarm_Entry);
+
+         DBG(3, "alm_start: new list nodes allocated.");
+      }
+
+      new_p = free_list;		/* Take first entry from free list */
+      free_list = free_list->next_p;
+
+      ASSERT_STRUC(new_p, Alarm_Entry);
+
+      ts_now = (*alm_ps->get_stamp)();    /* Calculate time due */
+      ts_due = ts_now + (delay > INT_SUBTRACT ? (delay - INT_SUBTRACT) : 0);
+
+      new_p->time_due = ts_due;	/* Fill the alarm entry */
+      new_p->sem_p    = sem_p;
+      new_p->cnt_p    = cnt_p;
+      new_p->next_p   = NULL;
+      if ((ts_due - last_checked <  ts_now - last_checked) &&
+          (ts_due - last_checked >= alarm_list->time_due - last_checked))
+         new_p->is_new = TRUE;
       else
-	 ts_ref = ts_now;
-      
-      ts_due  -= ts_ref;	/* Make time due relative */
+         new_p->is_new = FALSE;
 
-      moved = FALSE;
-				/* Sweep through alarm list */
-      while (ts_due > (act_p->time_due - ts_ref)) {
-	 moved = TRUE;
-	 act_p = (last_p = act_p)->next_p; /* Go to next element */
-	 if (act_p == alarm_list) break;
-      }
+      PRF(2,("alm_start: new alarm (%p) created: due at %u.\n",
+	         new_p, new_p->time_due));
 
-      new_p->next_p  = act_p;	     /* Insert new element */
-      last_p->next_p = new_p;
-				     /* Not moved? This is new head */
-      if (!moved) {
-	 alarm_list = new_p;
-	 PRF(4, ("alm_start: new alarm is first (before %p).\n", act_p));
-      } else if (act_p == alarm_list) {
-	 last_alarm = new_p;
-	 PRF(4, ("alm_start: new alarm is last (after %p).\n", last_p));
+				   /* Sort it into alarm list */
+      last_p = last_alarm;
+      act_p  = alarm_list;
+
+      if (act_p == NULL) {		/* Empty alarm list */
+         alarm_list    = new_p;	/* Whow */
+         new_p->next_p = new_p;
+         last_alarm    = new_p;
+         DBG(4, "alm_start: alarm list was empty - new alarm is first.");
+
       } else {
-	 PRF(4, ("alm_start: new alarm is between %p and %p.\n",
-		     last_p, act_p));
+
+         /* Sorting into alarm list is done with relative delays;
+	    reference is now or alarm_list->time_due (whichever is older) */
+         if (ts_now - last_checked > alarm_list->time_due - last_checked)
+	    ts_ref = alarm_list->time_due;
+         else
+	    ts_ref = ts_now;
+
+         ts_due  -= ts_ref;	/* Make time due relative */
+
+         moved = FALSE;
+				   /* Sweep through alarm list */
+         while (ts_due > (act_p->time_due - ts_ref)) {
+	    moved = TRUE;
+	    act_p = (last_p = act_p)->next_p; /* Go to next element */
+	    if (act_p == alarm_list) break;
+         }
+
+         new_p->next_p  = act_p;	     /* Insert new element */
+         last_p->next_p = new_p;
+				        /* Not moved? This is new head */
+         if (!moved) {
+	    alarm_list = new_p;
+	    PRF(4, ("alm_start: new alarm is first (before %p).\n", act_p));
+         } else if (act_p == alarm_list) {
+	    last_alarm = new_p;
+	    PRF(4, ("alm_start: new alarm is last (after %p).\n", last_p));
+         } else {
+	    PRF(4, ("alm_start: new alarm is between %p and %p.\n",
+		        last_p, act_p));
+         }
       }
+
+      if (alarm_list == new_p) { /* First list element changed */
+
+         ASSERT_STRUC(alarm_list, Alarm_Entry);
+
+				   /* Set up the next alarm */
+         ts_due = alarm_list->time_due - ts_now;
+         (*alm_ps->setup)(ts_due);
+
+         PRF(3, ("alm_start: next alarm (%p) set up (in %u us).\n",
+		     alarm_list, ts_due));
+      }
+
+      do {				/* The timer interrupted */
+         lock_key = intLock();
+         alm_status_ps->in_use  = TRUE;
+         alm_status_ps->woke_up = FALSE;
+         intUnlock(lock_key);
+
+         DBG(3, "alm_start: checking for alarms due.");
+         alm_check();		/* Check for and post alarms due */
+
+         lock_key = intLock();
+         alm_status_ps->in_use  = FALSE;
+         intUnlock(lock_key);
+      } while (alm_status_ps->woke_up);
+
+      UNLOCK(alm_lock);
+
+      DBG(5, "Leaving alm_start.");
+      DBG(3, "==============================================================");
+
+      return(new_p);		/* Return alarm id */
    }
-
-   if (alarm_list == new_p) { /* First list element changed */
-
-      ASSERT_STRUC(alarm_list, Alarm_Entry);
-
-				/* Set up the next alarm */
-      ts_due = alarm_list->time_due - ts_now;
-      (*alm_ps->setup)(ts_due);
-
-      PRF(3, ("alm_start: next alarm (%p) set up (in %u us).\n",
-		  alarm_list, ts_due));
-   }
-
-   do {				/* The timer interrupted */
-      lock_key = intLock();
-      alm_status_ps->in_use  = TRUE;
-      alm_status_ps->woke_up = FALSE;
-      intUnlock(lock_key);
-
-      DBG(3, "alm_start: checking for alarms due.");
-      alm_check();		/* Check for and post alarms due */
-
-      lock_key = intLock();
-      alm_status_ps->in_use  = FALSE;
-      intUnlock(lock_key);
-   } while (alm_status_ps->woke_up);
-
-   UNLOCK(alm_lock);
-
-   DBG(5, "Leaving alm_start.");
-   DBG(3, "==============================================================");
-
-   return(new_p);		/* Return alarm id */
 }
 
 
@@ -833,24 +845,31 @@ void alm_status_show (unsigned char verb)
 
 void alm_int_handler(int arg)
 {
-   if ( !alm_ps ) {
-     DBG(3,"alm_int_handler: alarm low-level timer symbol table has not been initialized. Call almInit().");
-     return;
-  }
-   
-   (*alm_ps->int_ack)();      /* acknowledge the interrupt */
-   
-   if (alm_status_ps && alm_status_ps->in_use) {   /* User call is active    */
-       alm_status_ps->woke_up = TRUE;
-       DBG(3, "alm_int_handler: Handler woke up.");
-   } else  { 
-       /* Since alm_check() doesn't access alm_status_ps then
-        * call it. Note that even if later alm_check() does access
-        * alm_status_ps it should also be modified to add a check for
-        * the existence of this pointer 
-        */
-                            /* No users around           */
-       alm_check();         /* Check for and post alarms */
+   if (almLibIsPrimitive) {
+      assert(alm_ps);
+      assert(wake_up_sem);
+      sem_post(wake_up_sem);
+      alm_ps->int_ack();
+   } else {
+      if ( !alm_ps ) {
+        DBG(3,"alm_int_handler: alarm low-level timer symbol table has not been initialized. Call almInit().");
+        return;
+      }
+
+      (*alm_ps->int_ack)();      /* acknowledge the interrupt */
+
+      if (alm_status_ps && alm_status_ps->in_use) {   /* User call is active    */
+          alm_status_ps->woke_up = TRUE;
+          DBG(3, "alm_int_handler: Handler woke up.");
+      } else  { 
+          /* Since alm_check() doesn't access alm_status_ps then
+           * call it. Note that even if later alm_check() does access
+           * alm_status_ps it should also be modified to add a check for
+           * the existence of this pointer 
+           */
+                               /* No users around           */
+          alm_check();         /* Check for and post alarms */
+      }
    }
 }
 
@@ -1068,6 +1087,9 @@ int alm_intLevelGet(void)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.9.2.1  2006/06/08 12:43:58  franksen
+ * alternatively use an extremely simple implementation that can only be used by one task
+ *
  * Revision 2.9  2004/07/13 13:14:24  luchini
  * Add wrapper functions for low-level timer support
  *
