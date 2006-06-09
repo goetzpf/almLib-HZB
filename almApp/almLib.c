@@ -56,7 +56,7 @@
  **************************************************************************-*/
 
 static char
-rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9.2.1 2006/06/08 12:43:58 franksen Exp $";
+rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9.2.2 2006/06/09 09:54:09 franksen Exp $";
 
 
 #include <vxWorks.h>          /* OK, ERROR                         */
@@ -68,7 +68,7 @@ rcsid[] = "@(#)almLib: $Id: almLib.c,v 2.9.2.1 2006/06/08 12:43:58 franksen Exp 
 #include <string.h>           /* for memmove()                     */
 #include <debugmsg.h>         /* DBG_DECLARE,DBG_MSG,etc macros    */
 #include <logLib.h>           /* logMsg() prototype                */
-#include <epicsAssert.h>
+#include <assert.h>
 
 #include "alm.h"              /* for alm_init_symTbl() prototype  */
 #include "almLib.h"           /* alm_check() prototype            */
@@ -847,8 +847,12 @@ void alm_int_handler(int arg)
 {
    if (almLibIsPrimitive) {
       assert(alm_ps);
-      assert(wake_up_sem);
-      sem_post(wake_up_sem);
+      /* assert(wake_up_sem); */
+      if (!wake_up_sem) {
+         logMsg("almLib(interrupt handler) warning: wake_up_sem is 0\n",0,0,0,0,0,0);
+      } else {
+         sem_post(wake_up_sem);
+      }
       alm_ps->int_ack();
    } else {
       if ( !alm_ps ) {
@@ -1087,6 +1091,10 @@ int alm_intLevelGet(void)
  * Author(s):	Ralph Lange
  *
  * $Log: almLib.c,v $
+ * Revision 2.9.2.2  2006/06/09 09:54:09  franksen
+ * for unknown reasons, we get an interrupt before alm_start has been called;
+ * therefore replaced assertion by a test and a warning message
+ *
  * Revision 2.9.2.1  2006/06/08 12:43:58  franksen
  * alternatively use an extremely simple implementation that can only be used by one task
  *
