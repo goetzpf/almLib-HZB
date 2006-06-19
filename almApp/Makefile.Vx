@@ -4,25 +4,16 @@ include $(TOP)/config/CONFIG_APP
 #-----------------------------------------------
 #  ADD MACRO DEFINITIONS AFTER THIS LINE
 
-# for almLib.c debug messages define "DEBUGMSG"
-#USR_CFLAGS += -DDEBUGMSG
-USR_CFLAGS += -D$(T_A)
+# to avoid warnings about long longs
+CMPLR=ANSI
 
-# Install include files
 INC += almLib.h
 
-# Install lib object and load object files
 DBDINSTALL = almLib.LIBOBJS almLib.LDOBJS
 
-# Compile source
-SRCS.c += ../almLib.c
-SRCS.c += ../alm_test.c
+SRCS.c += ../almLib.c ../div64.c
 
-LIBOBJS += almLib.o
-LIBOBJS += alm_test.o
-
-TARGETS = alm_test.o
-PROD += alm_test.o
+LIBOBJS += almLib.o div64.o
 
 LIBNAME = almLib
 
