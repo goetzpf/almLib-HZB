@@ -20,6 +20,6 @@
 # Add your declarations here
 
 SUPPORT=/opt/epics/R3.13.9/support
-BSP_DEP=$(SUPPORT)/bspDep/2-2
+BSP_DEP=$(SUPPORT)/bspDep/2-3
 MISC=$(SUPPORT)/misc/1-4
 EPICS_BASE=/opt/epics/R3.13.9/support/base/3-13-9

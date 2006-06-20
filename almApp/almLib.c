@@ -468,12 +468,12 @@ void alm_test_cb(unsigned short_delay, unsigned num, int silent)
 
         alm_init(alm, test_cb, x);
         x->start = alm_get_stamp();
-        x->nom_delay = (unsigned)rand() % short_delay;
+        x->nom_delay = (((unsigned)rand() << 16) + (unsigned)rand()) % short_delay;
         alm_start(alm, x->nom_delay);
     }
     while (counter > 0) {
         taskDelay(1);
-        printf(".");
+        printf(".");fflush(stdout);
     }
     printf("\n");
     for (n = 0; n < num; n++) {
