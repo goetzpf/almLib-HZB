@@ -11,9 +11,9 @@ INC += almLib.h
 
 DBDINSTALL = almLib.LIBOBJS almLib.LDOBJS
 
-SRCS.c += ../almLib.c ../div64.c
+SRCS.c += ../almLib.c
 
-LIBOBJS += almLib.o div64.o
+LIBOBJS += almLib.o
 
 LIBNAME = almLib
 

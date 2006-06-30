@@ -51,6 +51,12 @@ extern "C" {
 /* type of timestamps */
 typedef unsigned long long alm_stamp_t;
 
+#define dlo(dword) (unsigned long)((dword) % 1000000000llu)
+#define dhi(dword) (unsigned long)((dword) / 1000000000llu)
+#define alm_fmt_arg(stamp) dhi(stamp),dlo(stamp)
+#define alm_fmt "%.0lu%lu"
+/* Usage: printf("timestamp is: "alm_fmt"\n",alm_fmt_arg(timestamp)); */
+
 /*
  * type of callback routines
  *

@@ -56,11 +56,13 @@
 /*
  * Main features of this implementation are:
  * - 64 bit timestamps avoid overflow problems
- * - queue operations can be interrupted at any time
- *   => no int lock during queue operations
  * - alarm queue is always strictly sorted by time_due
- * - interrupt handler never modifies queue structure;
- *   it merely resets alarm's active flag
+ * - interrupt handler never modifies queue structure
+ *   but merely resets alarm's active flag
+ * - thus, queue operations can be interrupted at any time
+ *   (pointer assignment is assumed to be atomic)
+ *   => no int lock necessary during queue operations
+ * - only alm_setup_alarm and alm_get_stamp lock interrupts
  */
 
 static SEM_ID alm_lock;                 /* global mutex */
@@ -93,6 +95,9 @@ static void alm_int_handler()
     assert(alm_timer);
     alm_timer->int_ack();
     now = alm_get_stamp();
+#if 0
+    logMsg("*",0,0,0,0,0,0);
+#endif
     while (alm && alm->time_due <= now) {
         if (alm->active) {
             alm->callback(alm->arg);
@@ -120,18 +125,25 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
 {
     alm_stamp_t time_now, delay;
     static alm_stamp_t next_due = 0xffffffffffffffffull;
+    int lock_stat = 0;
+    unsigned long max_delay;
 
+    if (!from_int_handler) lock_stat = intLock();
     if (from_int_handler || time_due <= next_due) {
         time_now = alm_get_stamp();
         if (time_due < time_now)
             time_due = time_now;
         delay = time_due - time_now;
-        if (delay > MAX_WAIT) delay = MAX_WAIT;
+        max_delay = alm_timer->get_max_delay();
+        if (delay > max_delay) delay = max_delay;
         if (delay < MIN_WAIT) delay = MIN_WAIT;
         next_due = time_now + delay;
         alm_timer->setup(delay);
     }
+    if (!from_int_handler) intUnlock(lock_stat);
 }
+
+extern unsigned long ALM_get_stamp_slow(void);
 
 /*
  * Get the current timestamp as a 64 bit integer.
@@ -179,13 +191,14 @@ void alm_start(Alm what, alm_stamp_t delay)
         return;
     }
     semTake(alm_lock, WAIT_FOREVER);
-    alm_purge();                    /* remove inactive alarms from head of queue */
-    alm_cancel(what);               /* set alarm to inactive */
-    alm_remove(what);               /* remove it from queue (if enqueued) */
+    alm_purge();                        /* remove inactive alarms */
+    alm_cancel(what);                   /* set alarm to inactive */
+    alm_remove(what);                   /* remove it from queue (if enqueued) */
     what->time_due = tstart + delay;    /* calculate time due */
-    what->active = 1;               /* activate alarm */
-    alm_insert(what);               /* insert it into queue */
-    alm_setup_alarm(what->time_due, 0); /* setup timer (if necessary) */
+    what->active = 1;                   /* activate alarm */
+    alm_insert(what);                   /* insert it into queue */
+    if (what->active)
+        alm_setup_alarm(what->time_due, 0); /* setup timer (if necessary) */
     semGive(alm_lock);
 }
 
@@ -311,20 +324,17 @@ void alm_destroy(Alm alm)
 int alm_init_module(int intLevel)
 {
     if (!alm_timer) {
-        alm_status_ts *alm_timer_status;
-
-        alm_timer = alm_init_symTbl();
+        alm_timer = alm_tbl_init();
         if (!alm_timer) {
             errlogSevPrintf(errlogFatal,
                 "alm_init_module: alm_init_symTbl failed\n");
             return -1;
         }
-        alm_timer_status = alm_timer->getStatus();
         if (intLevel < 0 || intLevel > 7) {
             errlogSevPrintf(errlogInfo,
                 "alm_init_module: invalid intLevel, using default\n");
-        } else if (intLevel != 0) {
-            alm_timer_status->int_pri = intLevel;
+        } else {
+            alm_timer->set_int_level(intLevel);
         }
         alm_lock = semMCreate(
             SEM_Q_PRIORITY | SEM_DELETE_SAFE | SEM_INVERSION_SAFE);
@@ -333,24 +343,17 @@ int alm_init_module(int intLevel)
                 "alm_init_module: semMCreate failed\n");
             return -1;
         }
-        if (devConnectInterrupt(intCPU, alm_timer_status->int_vec,
+        if (devConnectInterrupt(intCPU, alm_timer->get_int_vector(),
                 alm_int_handler, 0)) {
             errlogSevPrintf(errlogFatal,
                 "alm_init_module: devConnectInterrupt failed\n");
             return -1;
         }
-        if (alm_timer->enable()) {
-            errlogSevPrintf(errlogFatal,
-                "alm_init_module: alm_timer->enable failed\n");
-            return -1;
-        }
+        alm_timer->enable();
         alm_setup_alarm(alm_get_stamp() + MAX_WAIT, 0);
     }
     return 0;
 }
-
-#define dlo(dword) (unsigned long)((dword) % 1000000000llu)
-#define dhi(dword) (unsigned long)((dword) / 1000000000llu)
 
 void alm_dump_alm(Alm alm)
 {
@@ -394,21 +397,20 @@ void alm_print_stamp(void)
 
 static long min_error, max_error;
 
-void alm_test_sem(unsigned short_delay)
+void alm_test_sem(unsigned delay)
 {
     sem_t sem;
     struct AlmDesc almd;
     Alm alm = &almd;
     alm_stamp_t t1, t2;
     long real_delay, error;
-    alm_stamp_t delay = short_delay;
 
     sem_init(&sem, 0, 0);
     alm_init_sem(alm, &sem);
     t1 = alm_get_stamp();
     alm_start(alm, delay);
-    printf("alm_start with delay=%.0lu%lu (time=%.0lu%lu)\n", 
-        dhi(delay), dlo(delay), dhi(t1), dlo(t1));
+    printf("alm_start with delay=%u (time=%.0lu%lu)\n", 
+        delay, dhi(t1), dlo(t1));
     sem_wait(&sem);
     t2 = alm_get_stamp();
     real_delay = t2 - t1;
@@ -421,9 +423,8 @@ void alm_test_sem(unsigned short_delay)
     sem_destroy(&sem);
 }
 
-void alm_test_sem_many(unsigned short_delay, unsigned num)
+void alm_test_sem_many(unsigned delay, unsigned num)
 {
-    alm_stamp_t delay = short_delay;
     min_error = LONG_MAX;
     max_error = LONG_MIN;
     while (num) {
@@ -451,7 +452,7 @@ void test_cb(void *arg)
     counter--;
 }
 
-void alm_test_cb(unsigned short_delay, unsigned num, int silent)
+void alm_test_cb(unsigned delay, unsigned num, int silent)
 {
     unsigned n = num;
     struct testdata *data = calloc(num, sizeof(struct testdata));
@@ -467,8 +468,14 @@ void alm_test_cb(unsigned short_delay, unsigned num, int silent)
         Alm alm = &x->almd;
 
         alm_init(alm, test_cb, x);
+        x->nom_delay = (((unsigned)rand() << 16) + (unsigned)rand()) % delay;
+    }
+    printf("init done\n");
+    for (n = 0; n < num; n++) {
+        struct testdata *x = &data[n];
+        Alm alm = &x->almd;
+
         x->start = alm_get_stamp();
-        x->nom_delay = (((unsigned)rand() << 16) + (unsigned)rand()) % short_delay;
         alm_start(alm, x->nom_delay);
     }
     while (counter > 0) {
@@ -479,18 +486,15 @@ void alm_test_cb(unsigned short_delay, unsigned num, int silent)
     for (n = 0; n < num; n++) {
         struct testdata *x = &data[n];
         alm_stamp_t real_delay = x->stop - x->start;
-        long error = (long long)real_delay - (long long)x->nom_delay;
         long latency = (long long)x->stop - (long long)x->almd.time_due;
 
         if (!silent) {
-            printf("%03u:start=%.0lu%lu,stop=%.0lu%lu,"
-                "r_delay=%.0lu%lu,n_delay=%.0lu%lu\n",
-                n, dhi(x->start), dlo(x->start),
-                dhi(x->stop), dlo(x->stop),
-                dhi(real_delay), dlo(real_delay),
-                dhi(x->nom_delay), dlo(x->nom_delay));
-            printf("%03u:due=%.0lu%lu,error=%ld,latency=%ld\n",
-                n, dhi(x->almd.time_due), dlo(x->almd.time_due), error, latency);
+            printf("%03u:start=%.0lu%lu,due=%.0lu%lu,stop=%.0lu%lu\n",
+                n, alm_fmt_arg(x->start),
+                alm_fmt_arg(x->almd.time_due),
+                alm_fmt_arg(x->stop));
+            printf("%03u:n_delay=%.0lu%lu,r_delay=%.0lu%lu,latency=%ld\n",
+                n, alm_fmt_arg(x->nom_delay), alm_fmt_arg(real_delay), latency);
         }
         min_latency = min(min_latency, latency);
         max_latency = max(max_latency, latency);
