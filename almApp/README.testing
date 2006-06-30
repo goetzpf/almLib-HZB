@@ -70,17 +70,25 @@ iocTESTIOC1C> alm_dump_queue
 empty
 value = 0 = 0x0
 
-If the test hangs (printing dots "forever"), this may indicate that interrupts
-are not setup properly. You can kill it with Ctrl-C, but note that the alarm
-queue will probably not be empty afterwards.
+If the test is printing dots 'forever', this typically indicates that interrupts
+are not setup properly. You can kill teh test with Ctrl-C, but note that the
+alarm queue will most probably not be empty afterwards.
 
-Another test is
+Note: Due to the simple linear search performed when a new alarm is enqueued,
+alm_start scales linear with the number of alarms already enqueued. This means
+that alm_test_cb scales quadratic in the number of alarms to be set up (first
+argument). For more than 10000 alarms this causes a noticeable delay; don't be
+surprised if the test seems to hang 'forever' before printing any dots for
+100000 or more alarms.
 
-alm_test_sem_many(max_delay,number_of_alarms);
+Another, more realistic, test is
+
+alm_test_sem_many(base_delay,number_of_alarms);
 
 which tests the semaphore based routines. It spawns number_of_alarms tasks which
 then start an alarm and wait for a semaphore to be given. The output is similar
-to alm_test_cb.
+to alm_test_cb. Note that the delays are not random, but instead calculated by
+delay(n) = base_delay * (number_of_alarms - n), i.e. delays are decreasing.
 
 For instance (again on mv162):
 
@@ -117,3 +125,7 @@ alm_start with delay=100 (time=737554282)
 done (time=737554621, real_delay=339, error=239)
 empty
 error_range=[67..239]
+
+Note that the delay errors reported are naturally larger than with alm_test_cb,
+since a task may be interrupted between starting the alarm and actually
+inserting teh alarm object into the queue.
