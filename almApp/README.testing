@@ -1,0 +1,119 @@
+How to test almLib for new boards
+=================================
+
+The most useful test routine is
+
+alm_test_cb(max_delay,number_of_alarms,silent);
+
+This uses a simple callback that records the timestamp when called in an array.
+It creates and starts number_of_alarms alarms with a random delay in the range
+[0..max_delay]. It waits for completion of all callbacks (printing dots every
+vxWorks clock tick) and then calculates a statistic of the difference between
+time due and the actual time when the callback is called. Output is verbose if
+the parameter silent is zero; verbose output dumps the remains of the alarm
+queue and prints a two line detailed report about each alarm.
+
+For instance, on a mv162:
+
+iocTESTIOC1C> alm_test_cb 100,1000,1
+init done
+.
+latency_range=[9..94]
+
+or, with detailed output (i.e. silent=0) and 10 seconds max_delay:
+
+iocTESTIOC1C> alm_test_cb 10000000,10
+init done
+................................................................................
+................................................................................
+................................................................................
+................................................................................
+................................................................................
+................................................................................
+................................................................................
+.......................................
+000:start=460361691,due=465801842,stop=465801869
+000:n_delay=5440145,r_delay=5440178,latency=27
+001:start=460361732,due=464507565,stop=464507594
+001:n_delay=4145829,r_delay=4145862,latency=29
+002:start=460361765,due=467837527,stop=467837559
+002:n_delay=7475758,r_delay=7475794,latency=32
+003:start=460361789,due=470326654,stop=470326686
+003:n_delay=9964861,r_delay=9964897,latency=32
+004:start=460361813,due=465341306,stop=465341334
+004:n_delay=4979488,r_delay=4979521,latency=28
+005:start=460361837,due=461145660,stop=461145686
+005:n_delay=783819,r_delay=783849,latency=26
+006:start=460361868,due=470094439,stop=470094472
+006:n_delay=9732567,r_delay=9732604,latency=33
+007:start=460361894,due=465462630,stop=465462655
+007:n_delay=5100732,r_delay=5100761,latency=25
+008:start=460361919,due=460467419,stop=460467440
+008:n_delay=105496,r_delay=105521,latency=21
+009:start=460361950,due=463511685,stop=463511713
+009:n_delay=3149731,r_delay=3149763,latency=28
+latency_range=[21..33]
+0xffe788:due=460467419,inactive,enqueued,next=0xffe6ec
+0xffe6ec:due=461145660,inactive,enqueued,next=0xffe7bc
+0xffe7bc:due=463511685,inactive,enqueued,next=0xffe61c
+0xffe61c:due=464507565,inactive,enqueued,next=0xffe6b8
+0xffe6b8:due=465341306,inactive,enqueued,next=0xffe754
+0xffe754:due=465462630,inactive,enqueued,next=0xffe5e8
+0xffe5e8:due=465801842,inactive,enqueued,next=0xffe650
+0xffe650:due=467837527,inactive,enqueued,next=0xffe720
+0xffe720:due=470094439,inactive,enqueued,next=0xffe684
+0xffe684:due=470326654,inactive,enqueued,next=0x0
+
+After alm_test_cb returns normally, the alarm queue should be empty:
+
+iocTESTIOC1C> alm_dump_queue
+empty
+value = 0 = 0x0
+
+If the test hangs (printing dots "forever"), this may indicate that interrupts
+are not setup properly. You can kill it with Ctrl-C, but note that the alarm
+queue will probably not be empty afterwards.
+
+Another test is
+
+alm_test_sem_many(max_delay,number_of_alarms);
+
+which tests the semaphore based routines. It spawns number_of_alarms tasks which
+then start an alarm and wait for a semaphore to be given. The output is similar
+to alm_test_cb.
+
+For instance (again on mv162):
+
+iocTESTIOC1C> alm_test_sem_many 100,10
+task spawned: id = 0xed0868, name = t1
+alm_start with delay=1000 (time=735759745)
+done (time=735760815, real_delay=1070, error=70)
+task spawned: id = 0xed0868, name = t2
+alm_start with delay=900 (time=735954338)
+done (time=735955305, real_delay=967, error=67)
+task spawned: id = 0xed0868, name = t3
+alm_start with delay=800 (time=736154338)
+done (time=736155205, real_delay=867, error=67)
+task spawned: id = 0xed0868, name = t4
+alm_start with delay=700 (time=736354360)
+done (time=736355144, real_delay=784, error=84)
+task spawned: id = 0xed0868, name = t5
+alm_start with delay=600 (time=736554312)
+done (time=736554995, real_delay=683, error=83)
+task spawned: id = 0xed0868, name = t6
+alm_start with delay=500 (time=736754298)
+done (time=736754867, real_delay=569, error=69)
+task spawned: id = 0xed0868, name = t7
+alm_start with delay=400 (time=736954294)
+done (time=736954763, real_delay=469, error=69)
+task spawned: id = 0xed0868, name = t8
+alm_start with delay=300 (time=737154294)
+done (time=737154665, real_delay=371, error=71)
+task spawned: id = 0xed0868, name = t9
+alm_start with delay=200 (time=737354304)
+done (time=737354645, real_delay=341, error=141)
+task spawned: id = 0xed0868, name = t10
+alm_start with delay=100 (time=737554282)
+done (time=737554621, real_delay=339, error=239)
+empty
+error_range=[67..239]
