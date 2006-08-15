@@ -95,9 +95,6 @@ static void alm_int_handler()
     assert(alm_timer);
     alm_timer->int_ack();
     now = alm_get_stamp();
-#if 0
-    logMsg("*",0,0,0,0,0,0);
-#endif
     while (alm && alm->time_due <= now) {
         if (alm->active) {
             alm->callback(alm->arg);
@@ -142,8 +139,6 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
     }
     if (!from_int_handler) intUnlock(lock_stat);
 }
-
-extern unsigned long ALM_get_stamp_slow(void);
 
 /*
  * Get the current timestamp as a 64 bit integer.
@@ -358,7 +353,7 @@ int alm_init_module(int intLevel)
 void alm_dump_alm(Alm alm)
 {
     assert(alm);
-    printf("%p:due=%.0lu%lu,%s,%s,next=%p\n",
+    printf("%p:due="alm_fmt",%s,%s,next=%p\n",
         alm, dhi(alm->time_due), dlo(alm->time_due),
         alm->active ? "active" : "inactive",
         alm->enqueued ? "enqueued" : "dequeued", alm->next);
@@ -384,7 +379,7 @@ void alm_dump_queue(void)
 void alm_print_stamp(void)
 {
     alm_stamp_t time=alm_get_stamp();
-    printf("%.0lu%lu\n",dhi(time),dlo(time));
+    printf(""alm_fmt"\n",dhi(time),dlo(time));
 }
 
 /*
@@ -409,13 +404,13 @@ void alm_test_sem(unsigned delay)
     alm_init_sem(alm, &sem);
     t1 = alm_get_stamp();
     alm_start(alm, delay);
-    printf("alm_start with delay=%u (time=%.0lu%lu)\n", 
+    printf("alm_start with delay=%u (time="alm_fmt")\n", 
         delay, dhi(t1), dlo(t1));
     sem_wait(&sem);
     t2 = alm_get_stamp();
     real_delay = t2 - t1;
     error = (long long)real_delay - (long long)delay;
-    printf("done (time=%.0lu%lu, real_delay=%.0lu%lu, error=%ld)\n",
+    printf("done (time="alm_fmt", real_delay="alm_fmt", error=%ld)\n",
         dhi(t2), dlo(t2), dhi(real_delay), dlo(real_delay), error);
     min_error = min(min_error, error);
     max_error = max(max_error, error);
@@ -489,11 +484,11 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
         long latency = (long long)x->stop - (long long)x->almd.time_due;
 
         if (!silent) {
-            printf("%03u:start=%.0lu%lu,due=%.0lu%lu,stop=%.0lu%lu\n",
+            printf("%03u:start="alm_fmt",due="alm_fmt",stop="alm_fmt"\n",
                 n, alm_fmt_arg(x->start),
                 alm_fmt_arg(x->almd.time_due),
                 alm_fmt_arg(x->stop));
-            printf("%03u:n_delay=%.0lu%lu,r_delay=%.0lu%lu,latency=%ld\n",
+            printf("%03u:n_delay="alm_fmt",r_delay="alm_fmt",latency=%ld\n",
                 n, alm_fmt_arg(x->nom_delay), alm_fmt_arg(real_delay), latency);
         }
         min_latency = min(min_latency, latency);
