@@ -156,6 +156,8 @@ alm_stamp_t alm_get_stamp(void)
     alm_stamp_t result;
     int lock_key;
 
+    if (!alm_timer)
+        alm_timer = alm_tbl_init();
     lock_key = intLock();
     now = alm_timer->get_stamp();
     if (now < last_time) {
@@ -318,7 +320,14 @@ void alm_destroy(Alm alm)
 
 int alm_init_module(int intLevel)
 {
-    if (!alm_timer) {
+    if (!alm_lock) {
+        alm_lock = semMCreate(
+            SEM_Q_PRIORITY | SEM_DELETE_SAFE | SEM_INVERSION_SAFE);
+        if (!alm_lock) {
+            errlogSevPrintf(errlogFatal,
+                "alm_init_module: semMCreate failed\n");
+            return -1;
+        }
         alm_timer = alm_tbl_init();
         if (!alm_timer) {
             errlogSevPrintf(errlogFatal,
@@ -330,13 +339,6 @@ int alm_init_module(int intLevel)
                 "alm_init_module: invalid intLevel, using default\n");
         } else {
             alm_timer->set_int_level(intLevel);
-        }
-        alm_lock = semMCreate(
-            SEM_Q_PRIORITY | SEM_DELETE_SAFE | SEM_INVERSION_SAFE);
-        if (!alm_lock) {
-            errlogSevPrintf(errlogFatal,
-                "alm_init_module: semMCreate failed\n");
-            return -1;
         }
         if (devConnectInterrupt(intCPU, alm_timer->get_int_vector(),
                 alm_int_handler, 0)) {
