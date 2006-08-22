@@ -2,7 +2,7 @@
  *
  * Project:     Experimental Physics and Industrial Control System (EPICS)
  *
- * Module:      Alm - High Resolution Timer and Alarm Clock Library
+ * Module:      almLib - High Resolution Timer and Alarm Clock Library
  *
  * File:        almLib.h
  *
@@ -48,8 +48,10 @@ extern "C" {
 
 #include <semaphore.h>
 
-/* type of timestamps */
+/* type of timestamps (in microseconds) */
 typedef unsigned long long alm_stamp_t;
+/* type of alarm delays (in microseconds) */
+typedef unsigned long long alm_delay_t;
 
 #define dlo(dword) (unsigned long)((dword) % 1000000000llu)
 #define dhi(dword) (unsigned long)((dword) / 1000000000llu)
@@ -68,63 +70,55 @@ typedef unsigned long long alm_stamp_t;
 typedef void alm_callback(void*);
 
 /*
- * This structure should be viewed as opaque. It is exported
- * so that client code can allocate it on the stack.
- * Don't forget to call alm_init if you do this!
+ * Type of alarm objects.
  */
-struct AlmDesc {
-    void            *arg;
-    alm_callback    *callback;
-    alm_stamp_t     time_due;
-    int             active;
-    int             enqueued;
-    struct AlmDesc  *next;
-};
-typedef struct AlmDesc *Alm;
+typedef struct alm_def *alm_t;
 
 /*
- * Must be called once prior to using any of the features of this library.
+ * Must be called once prior to using any of the features of this library,
+ * (except for <alm_get_stamp>, which may also be used from interrupt level).
  * A proper place is from vxWorks startup script, right after loading the code.
+ * Returns -1 on error, 0 on success.
  */
-extern int alm_init_module(int intLevel);
+extern int alm_init(int intLevel);
 
 /*
- * Alm objects can be allocated (alm_create) and freed (alm_destroy)
- * by the library, using teh following routines.
- * Creation includes proper initialization, using the given values.
+ * Create a new alarm. Whenever this alarm expires, <callback> will be
+ * called with <arg> as argument.
  */
-extern Alm alm_create(alm_callback *callback, void *arg);
-extern Alm alm_create_sem(sem_t *sem);
-extern void alm_destroy(Alm alm);
+extern alm_t alm_create(alm_callback *callback, void *arg);
 
 /*
- * Explicit initialization and de-initialization for use with
- * stack allocated Alm objects.
+ * Create a new alarm that gives a semaphore on expiration.
  */
-extern void alm_init(Alm alm, alm_callback *callback, void *arg);
-extern void alm_init_sem(Alm alm, sem_t *sem);
-extern void alm_deinit(Alm alm);
+#define alm_create_sem(sem) alm_create((alm_callback*)sem_post, sem);
 
 /*
- * Start alarm clock for an Alm object. The object's callback will be
- * called (from interrupt handler) afetr <delay> microseconds.
+ * Destroy an alarm object. The alarm object handle that was given as
+ * argument must no longer be used.
  */
+extern void alm_destroy(alm_t alm);
+
 #define MAX_DELAY 0x8000000000000000ull
+
 /*
- * Delays greater than MAX_DELAY (microseconds) are silently 
+ * Start alarm clock for the given alarm object <alm>. The object's callback
+ * will be called (from interrupt handler) after <delay> microseconds.
+ *
+ * Delays greater than MAX_DELAY (microseconds) are silently
  * ignored. They would be /a lot/ further into the future than
  * the IOC runs w/o booting (appr. 292471 years).
  */
-extern void alm_start(Alm alm, alm_stamp_t delay);
+extern void alm_start(alm_t alm, alm_delay_t delay);
 
 /* Cancel an outstanding alarm */
-extern void alm_cancel(Alm alm);
+extern void alm_cancel(alm_t alm);
 
 /* Return the current timestamp */
 extern alm_stamp_t alm_get_stamp(void);
 
 /* Test routines */
-extern void alm_dump_alm(Alm alm);
+extern void alm_dump_alm(alm_t alm);
 extern void alm_dump_queue(void);
 extern void alm_print_stamp(void);
 
