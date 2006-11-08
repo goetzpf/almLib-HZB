@@ -47,6 +47,7 @@ extern "C" {
 #endif
 
 #include <semaphore.h>
+#include <DbC.h>
 
 /* type of timestamps (in microseconds) */
 typedef unsigned long long alm_stamp_t;
@@ -74,17 +75,31 @@ typedef void alm_callback(void*);
  */
 typedef struct alm_def *alm_t;
 
+typedef enum {
+    ALM_INIT_OK=0,
+    ALM_INIT_FAILED=-1,
+    ALM_NO_INIT=1
+} alm_init_state_t;
+
 /*
  * Must be called once prior to using any of the features of this library,
  * (except for <alm_get_stamp>, which may also be used from interrupt level).
- * A proper place is from vxWorks startup script, right after loading the code.
+ * A good place is from vxWorks startup script, right after loading the code.
  * Returns -1 on error, 0 on success.
+ * Argument <intLevel> specifies the interrupt level to be used for the
+ * interrupt handler taht will call alarm callbacks. Allowed values are
+ * BSP specific and thus not specified here.
  */
-extern int alm_init(int intLevel);
+extern alm_init_state_t alm_init(int intLevel);
+
+/*
+ * Return the current init state.
+ */
+extern alm_init_state_t alm_init_state(void);
 
 /*
  * Create a new alarm. Whenever this alarm expires, <callback> will be
- * called with <arg> as argument.
+ * called with <arg> as argument. Returns NULL if allocation failes.
  */
 extern alm_t alm_create(alm_callback *callback, void *arg);
 
@@ -97,7 +112,11 @@ extern alm_t alm_create(alm_callback *callback, void *arg);
  * Destroy an alarm object. The alarm object handle that was given as
  * argument must no longer be used.
  */
-extern void alm_destroy(alm_t alm);
+extern void unchecked_alm_destroy(alm_t alm);
+
+#define alm_destroy(alm)\
+    assertPre((alm) != NULL,\
+        alm_destroy(alm))
 
 #define MAX_DELAY 0x8000000000000000ull
 
@@ -109,12 +128,21 @@ extern void alm_destroy(alm_t alm);
  * ignored. They would be /a lot/ further into the future than
  * the IOC runs w/o booting (appr. 292471 years).
  */
-extern void alm_start(alm_t alm, alm_delay_t delay);
+extern void unchecked_alm_start(alm_t alm, alm_delay_t delay);
+
+#define alm_start(alm, delay)\
+    assertPre((alm) != NULL && alm_init_state() == ALM_INIT_OK,\
+        alm_start(alm, delay))
 
 /* Cancel an outstanding alarm */
-extern void alm_cancel(alm_t alm);
+extern void unchecked_alm_cancel(alm_t alm);
 
-/* Return the current timestamp */
+#define alm_cancel(alm)\
+    assertPre((alm) != NULL,\
+        alm_cancel(alm))
+
+/* Return the current timestamp. This routine may be called from interrupt
+   context. */
 extern alm_stamp_t alm_get_stamp(void);
 
 /* Test routines */
