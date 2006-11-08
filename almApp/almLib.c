@@ -285,7 +285,7 @@ void unchecked_alm_destroy(alm_t alm)
 {
     alm_cancel(alm);
     if (alm->enqueued) {
-        assert(alm_init_state == ALM_INIT_OK);
+        assert(init_state == ALM_INIT_OK);
         semTake(alm_lock, WAIT_FOREVER);
         alm_remove(alm);
         semGive(alm_lock);
@@ -293,6 +293,11 @@ void unchecked_alm_destroy(alm_t alm)
     assert(!alm->active);
     assert(!alm->enqueued);
     free(alm);
+}
+
+alm_init_state_t alm_init_state(void)
+{
+    return init_state;
 }
 
 int alm_init(int intLevel)
