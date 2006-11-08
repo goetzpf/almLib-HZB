@@ -74,7 +74,8 @@ struct alm_def {
     struct alm_def  *next;
 };
 
-static alm_init_state_t init_state;     /* this module's initialization state */
+static alm_init_state_t init_state = ALM_NO_INIT;
+                                        /* this module's initialization state */
 static SEM_ID alm_lock;                 /* global mutex */
 static alm_t first_alm;                 /* head of alm_t object queue */
 static alm_func_tbl_ts *alm_timer;      /* low-level timer routines */
