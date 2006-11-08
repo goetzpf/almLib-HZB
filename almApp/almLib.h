@@ -115,7 +115,7 @@ extern alm_t alm_create(alm_callback *callback, void *arg);
 extern void unchecked_alm_destroy(alm_t alm);
 
 #define alm_destroy(alm)\
-    assertPre((alm) != NULL,\
+    assertPre((alm) != NULL && alm_init_state() == ALM_INIT_OK,\
         alm_destroy(alm))
 
 #define MAX_DELAY 0x8000000000000000ull
