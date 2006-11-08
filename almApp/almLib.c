@@ -308,7 +308,7 @@ int alm_init(int intLevel)
     if (init_state != ALM_NO_INIT) {
         goto done;
     }
-    init_state = -1;                    /* assume init failes */
+    init_state = ALM_INIT_FAILED;       /* assume init failes */
     if (!alm_timer) {
         errlogSevPrintf(errlogFatal,
             "alm_init: alm_init_symTbl failed\n");
@@ -340,7 +340,7 @@ int alm_init(int intLevel)
     alm_timer->enable();
     alm_setup_alarm(alm_get_stamp() + MAX_WAIT, 0);
 
-    init_state = 0;                     /* success */
+    init_state = ALM_INIT_OK;           /* success */
 
 done:
     intUnlock(key);

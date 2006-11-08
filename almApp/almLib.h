@@ -85,7 +85,7 @@ typedef enum {
  * Must be called once prior to using any of the features of this library,
  * (except for <alm_get_stamp>, which may also be used from interrupt level).
  * A good place is from vxWorks startup script, right after loading the code.
- * Returns -1 on error, 0 on success.
+ * Returns ALM_INIT_FAILED on error, ALM_INIT_OK on success.
  * Argument <intLevel> specifies the interrupt level to be used for the
  * interrupt handler taht will call alarm callbacks. Allowed values are
  * BSP specific and thus not specified here.
