@@ -309,6 +309,8 @@ int alm_init(int intLevel)
         goto done;
     }
     init_state = ALM_INIT_FAILED;       /* assume init failes */
+    if (!alm_timer)
+        alm_timer = alm_tbl_init();
     if (!alm_timer) {
         errlogSevPrintf(errlogFatal,
             "alm_init: alm_init_symTbl failed\n");
