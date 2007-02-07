@@ -333,7 +333,7 @@ int alm_init(int intLevel)
             "alm_init: semMCreate failed\n");
         goto done;
     }
-    if (devConnectInterrupt(intCPU, alm_timer->get_int_vector(),
+    if (devConnectInterrupt(intVME, alm_timer->get_int_vector(),
             alm_int_handler, 0)) {
         errlogSevPrintf(errlogFatal,
             "alm_init: devConnectInterrupt failed\n");
