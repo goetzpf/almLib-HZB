@@ -17,10 +17,10 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 #If using the sequencer, point SNCSEQ at its top directory:
 #SNCSEQ=$(EPICS_BASE)/../modules/soft/seq
 
-SUPPORT=/opt/Epics/R3.14.8/support
+EPICS_SUPPORT=/opt/Epics/R3.14.8/support
 
-BSP_DEP=$(SUPPORT)/bspDep/3-2
-MISC=$(SUPPORT)/misc/2-4
+TIMER=$(EPICS_SUPPORT)/bspDep/timer/4-0
+MISC=$(EPICS_SUPPORT)/misc/2-4
 
 # EPICS_BASE usually appears last so other apps can override stuff:
 EPICS_BASE=/opt/Epics/R3.14.8/base/3-14-8-2-0
