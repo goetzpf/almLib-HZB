@@ -49,6 +49,7 @@
 #include <intLib.h>
 
 #include <devLib.h>
+#include <errlog.h>
 
 #include "alm.h"
 #include "almLib.h"
