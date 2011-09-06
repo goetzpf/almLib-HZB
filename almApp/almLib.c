@@ -41,7 +41,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 
 #include <devLib.h>
 #include <errlog.h>
@@ -50,6 +49,8 @@
 
 #include "alm.h"
 #include "almLib.h"
+
+#include <assert.h>
 
 
 #ifndef min
