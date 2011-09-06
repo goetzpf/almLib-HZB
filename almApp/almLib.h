@@ -46,7 +46,6 @@
 extern "C" {
 #endif
 
-#include <semaphore.h>
 #include <DbC.h>
 
 /* type of timestamps (in microseconds) */

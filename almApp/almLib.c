@@ -41,7 +41,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <semaphore.h>
 #include <assert.h>
 
 #include <devLib.h>
@@ -397,6 +396,7 @@ void alm_print_stamp(void)
  * Test code follows
  */
 
+#include <semaphore.h>
 #include <epicsThread.h>
 
 static long min_error, max_error;
