@@ -6,7 +6,7 @@ include $(TOP)/configure/CONFIG
 
 INC += almLib.h
 
-LIBRARY_IOC_vxWorks = alm
+LIBRARY_IOC = alm
 
 LIB_SRCS += almLib.c almRegisterCmds.c
 

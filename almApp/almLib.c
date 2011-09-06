@@ -44,15 +44,22 @@
 #include <semaphore.h>
 #include <assert.h>
 
-#include <vxWorks.h>
-#include <semLib.h>
-#include <intLib.h>
-
 #include <devLib.h>
 #include <errlog.h>
+#include <epicsMutex.h>
+#include <epicsInterrupt.h>
 
 #include "alm.h"
 #include "almLib.h"
+
+
+#ifndef min
+#define min(a,b) (a)<(b)?(a):(b)
+#endif
+
+#ifndef max
+#define max(a,b) (a)>(b)?(a):(b)
+#endif
 
 /*
  * Main features of this implementation are:
@@ -77,7 +84,7 @@ struct alm_def {
 
 static alm_init_state_t init_state = ALM_NO_INIT;
                                         /* this module's initialization state */
-static SEM_ID alm_lock;                 /* global mutex */
+static epicsMutexId alm_lock;           /* global mutex */
 static alm_t first_alm;                 /* head of alm_t object queue */
 static alm_func_tbl_ts *alm_timer;      /* low-level timer routines */
 
@@ -136,7 +143,7 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
     int lock_stat = 0;
     unsigned long max_delay;
 
-    if (!from_int_handler) lock_stat = intLock();
+    if (!from_int_handler) lock_stat = epicsInterruptLock();
     if (from_int_handler || time_due <= next_due) {
         time_now = alm_get_stamp();
         if (time_due < time_now)
@@ -148,7 +155,7 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
         next_due = time_now + delay;
         alm_timer->setup(delay);
     }
-    if (!from_int_handler) intUnlock(lock_stat);
+    if (!from_int_handler) epicsInterruptUnlock(lock_stat);
 }
 
 /*
@@ -169,14 +176,14 @@ alm_stamp_t alm_get_stamp(void)
 
     if (!alm_timer)
         alm_timer = alm_tbl_init();
-    lock_key = intLock();
+    lock_key = epicsInterruptLock();
     now = alm_timer->get_stamp();
     if (now < last_time) {
         high_word += 0x100000000ull;
     }
     last_time = now;
     result = high_word + now;
-    intUnlock(lock_key);
+    epicsInterruptUnlock(lock_key);
     return result;
 }
 
@@ -195,7 +202,7 @@ void unchecked_alm_start(alm_t what, alm_stamp_t delay)
     if (delay > MAX_DELAY) {
         return;
     }
-    semTake(alm_lock, WAIT_FOREVER);
+    epicsMutexMustLock(alm_lock);
     alm_purge();                        /* remove inactive alarms */
     alm_cancel(what);                   /* set alarm to inactive */
     alm_remove(what);                   /* remove it from queue (if enqueued) */
@@ -204,7 +211,7 @@ void unchecked_alm_start(alm_t what, alm_stamp_t delay)
     alm_insert(what);                   /* insert it into queue */
     if (what->active)
         alm_setup_alarm(what->time_due, 0); /* setup timer (if necessary) */
-    semGive(alm_lock);
+    epicsMutexUnlock(alm_lock);
 }
 
 /* insert alarm into queue, sorted by time due */
@@ -288,9 +295,9 @@ void unchecked_alm_destroy(alm_t alm)
     alm_cancel(alm);
     if (alm->enqueued) {
         assert(init_state == ALM_INIT_OK);
-        semTake(alm_lock, WAIT_FOREVER);
+        epicsMutexMustLock(alm_lock);
         alm_remove(alm);
-        semGive(alm_lock);
+        epicsMutexUnlock(alm_lock);
     }
     assert(!alm->active);
     assert(!alm->enqueued);
@@ -304,7 +311,7 @@ alm_init_state_t alm_init_state(void)
 
 int alm_init(int intLevel)
 {
-    int key = intLock();                /* lock interrupts during init */
+    int key = epicsInterruptLock();                /* lock interrupts during init */
 
     if (init_state != ALM_NO_INIT) {
         goto done;
@@ -327,8 +334,7 @@ int alm_init(int intLevel)
 #if 0
     }
 #endif
-    alm_lock = semMCreate(
-        SEM_Q_PRIORITY | SEM_DELETE_SAFE | SEM_INVERSION_SAFE);
+    alm_lock = epicsMutexCreate();
     if (!alm_lock) {
         errlogSevPrintf(errlogFatal,
             "alm_init: semMCreate failed\n");
@@ -345,7 +351,7 @@ int alm_init(int intLevel)
     init_state = ALM_INIT_OK;           /* success */
 
 done:
-    intUnlock(key);
+    epicsInterruptUnlock(key);
     return init_state;
 }
 
@@ -369,7 +375,7 @@ void alm_dump_queue(void)
         printf("not initialized or initialization failed\n");
         return;
     }
-    semTake(alm_lock, WAIT_FOREVER);
+    epicsMutexMustLock(alm_lock);
     if (!first_alm) {
         printf("empty\n");
     } else {
@@ -378,7 +384,7 @@ void alm_dump_queue(void)
             next = next->next;
         }
     }
-    semGive(alm_lock);
+    epicsMutexUnlock(alm_lock);
 }
 
 void alm_print_stamp(void)
@@ -391,14 +397,15 @@ void alm_print_stamp(void)
  * Test code follows
  */
 
-#include <taskLib.h>
-#include <sysLib.h>
-#include <usrLib.h>
+#include <epicsThread.h>
 
 static long min_error, max_error;
 
-void alm_test_sem(unsigned delay)
+#define ERROR_LIMIT 0x7fffffff
+
+void alm_test_sem(void *parm)
 {
+    unsigned delay = (unsigned)parm;
     sem_t sem;
     alm_t alm;
     alm_stamp_t t1, t2;
@@ -428,14 +435,16 @@ void alm_test_sem(unsigned delay)
 
 void alm_test_sem_many(unsigned delay, unsigned num)
 {
-    min_error = LONG_MAX;
-    max_error = LONG_MIN;
+    min_error = ERROR_LIMIT;
+    max_error = -ERROR_LIMIT;
     while (num) {
-        sp((FUNCPTR)alm_test_sem, (unsigned)(delay * num),0,0,0,0,0,0,0,0);
-        taskDelay(sysClkRateGet()/5);
+        epicsThreadCreate("", epicsThreadPriorityMedium,
+            epicsThreadGetStackSize(epicsThreadStackMedium),
+            alm_test_sem, (void*) (delay * num));
+        epicsThreadSleep(0.2);
         num--;
     }
-    taskDelay(sysClkRateGet()*2);
+    epicsThreadSleep(2.0);
     alm_dump_queue();
     printf("error_range=[%ld..%ld]\n", min_error, max_error);
 }
@@ -459,14 +468,14 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
 {
     unsigned n = num;
     struct testdata *data = calloc(num, sizeof(struct testdata));
-    long min_latency = LONG_MAX, max_latency = LONG_MIN;
+    long min_latency = ERROR_LIMIT, max_latency = -ERROR_LIMIT;
 
     if (!data) {
         printf("ERROR: memory allocation failed!\n");
         return;
     }
-    min_error = LONG_MAX;
-    max_error = LONG_MIN;
+    min_error = ERROR_LIMIT;
+    max_error = -ERROR_LIMIT;
 
     counter = num;
     for (n = 0; n < num; n++) {
@@ -482,7 +491,7 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
         alm_start(x->alm, x->nom_delay);
     }
     while (counter > 0) {
-        taskDelay(1);
+        epicsThreadSleep(1.0/60);
         printf(".");fflush(stdout);
     }
     printf("\n");
