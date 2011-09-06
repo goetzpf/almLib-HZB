@@ -108,6 +108,11 @@ extern alm_t alm_create(alm_callback *callback, void *arg);
 #define alm_create_sem(sem) alm_create((alm_callback*)sem_post, sem);
 
 /*
+ * Create a new alarm that gives an epicsEvent on expiration.
+ */
+#define alm_create_event(ev) alm_create((alm_callback*)epicsEventSignal, ev);
+
+/*
  * Destroy an alarm object. The alarm object handle that was given as
  * argument must no longer be used.
  */

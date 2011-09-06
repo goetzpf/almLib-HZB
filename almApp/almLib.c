@@ -521,3 +521,15 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
     }
     free(data);
 }
+
+#include <epicsEvent.h>
+
+void test_alm_create_event(void)
+{
+    epicsEventId ev = epicsEventMustCreate(epicsEventEmpty);
+    alm_t alm = alm_create_event(ev);
+    printf("test_alm_create_event start\n");
+    alm_start(alm,1e6);
+    epicsEventWait(ev);
+    printf("test_alm_create_event stop\n");
+}
