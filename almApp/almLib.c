@@ -290,6 +290,16 @@ alm_t alm_create(alm_callback *callback, void *arg)
     return alm;
 }
 
+void alm_call_epics_event_signal(void *arg)
+{
+    epicsEventSignal((epicsEventId)arg);
+}
+
+alm_t alm_create_event(epicsEventId ev)
+{
+    return alm_create(alm_call_epics_event_signal, ev);
+}
+
 void unchecked_alm_destroy(alm_t alm)
 {
     alm_cancel(alm);
@@ -521,8 +531,6 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
     }
     free(data);
 }
-
-#include <epicsEvent.h>
 
 void test_alm_create_event(void)
 {

@@ -47,6 +47,7 @@ extern "C" {
 #endif
 
 #include <DbC.h>
+#include <epicsEvent.h>
 
 /* type of timestamps (in microseconds) */
 typedef unsigned long long alm_stamp_t;
@@ -110,7 +111,7 @@ extern alm_t alm_create(alm_callback *callback, void *arg);
 /*
  * Create a new alarm that gives an epicsEvent on expiration.
  */
-#define alm_create_event(ev) alm_create((alm_callback*)epicsEventSignal, ev);
+extern alm_t alm_create_event(epicsEventId ev);
 
 /*
  * Destroy an alarm object. The alarm object handle that was given as
