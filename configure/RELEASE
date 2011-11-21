@@ -19,11 +19,11 @@ TEMPLATE_TOP=$(EPICS_BASE)/templates/makeBaseApp/top
 
 EPICS_SUPPORT=/opt/Epics/R3.14.12/support
 
-TIMER=$(EPICS_SUPPORT)/bspDep/timer/6-1
+TIMER=$(EPICS_SUPPORT)/bspDep/timer/6-2
 DBC=$(EPICS_SUPPORT)/misc/dbc/3-0
 
 # EPICS_BASE usually appears last so other apps can override stuff:
-EPICS_BASE=/opt/Epics/R3.14.12/base/3-14-12-1-1
+EPICS_BASE=/opt/Epics/R3.14.12/base/3-14-12-2-1
 
 #Capfast users may need the following definitions
 #CAPFAST_TEMPLATES=
