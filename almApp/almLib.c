@@ -449,7 +449,7 @@ void alm_test_sem_many(unsigned delay, unsigned num)
     min_error = ERROR_LIMIT;
     max_error = -ERROR_LIMIT;
     while (num) {
-        epicsThreadCreate("", epicsThreadPriorityMedium,
+        epicsThreadCreate("athx", epicsThreadPriorityMedium,
             epicsThreadGetStackSize(epicsThreadStackMedium),
             alm_test_sem, (void*) (delay * num));
         epicsThreadSleep(0.2);
