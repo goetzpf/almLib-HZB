@@ -198,19 +198,18 @@ void unchecked_alm_start(alm_t what, alm_stamp_t delay)
     /* to minimize errors, take the timestamp as early as possible */
     tstart = alm_get_stamp();
 
-    /* extremely long delays are simply ignored */
-    if (delay > MAX_DELAY) {
-        return;
-    }
     epicsMutexMustLock(alm_lock);
     alm_purge();                        /* remove inactive alarms */
     alm_cancel(what);                   /* set alarm to inactive */
     alm_remove(what);                   /* remove it from queue (if enqueued) */
-    what->time_due = tstart + delay;    /* calculate time due */
-    what->active = 1;                   /* activate alarm */
-    alm_insert(what);                   /* insert it into queue */
-    if (what->active)
-        alm_setup_alarm(what->time_due, 0); /* setup timer (if necessary) */
+    /* extremely long delays are simply ignored */
+    if (delay <= MAX_DELAY) {
+        what->time_due = tstart + delay;    /* calculate time due */
+        what->active = 1;                   /* activate alarm */
+        alm_insert(what);                   /* insert it into queue */
+        if (what->active)
+            alm_setup_alarm(what->time_due, 0); /* setup timer (if necessary) */
+    }
     epicsMutexUnlock(alm_lock);
 }
 
