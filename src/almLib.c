@@ -201,7 +201,7 @@ void unchecked_alm_start(alm_t what, alm_stamp_t delay)
     alm_cancel(what);                   /* set alarm to inactive */
     alm_remove(what);                   /* remove it from queue (if enqueued) */
     /* extremely long delays are simply ignored */
-    if (delay <= MAX_DELAY) {
+    if (delay < MAX_DELAY) {
         what->time_due = tstart + delay;    /* calculate time due */
         what->active = 1;                   /* activate alarm */
         alm_insert(what);                   /* insert it into queue */
