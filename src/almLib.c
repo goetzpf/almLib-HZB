@@ -514,12 +514,16 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
     free(data);
 }
 
-void test_alm_create_event(void)
+void alm_test_create_event(int delay)
 {
+    alm_delay_t real_delay;
     epicsEventId ev = epicsEventMustCreate(epicsEventEmpty);
     alm_t alm = alm_create_event(ev);
+    real_delay = delay > 0 ? delay : 1e6;
     printf("test_alm_create_event start\n");
-    alm_start(alm,1e6);
+    alm_start(alm,real_delay);
     epicsEventWait(ev);
     printf("test_alm_create_event stop\n");
+    alm_destroy(alm);
+    epicsEventDestroy(ev);
 }
