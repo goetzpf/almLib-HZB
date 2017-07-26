@@ -1,7 +1,5 @@
 #Makefile at top of application tree
 TOP = .
 include $(TOP)/configure/CONFIG
-DIRS = configure almLib timerLib
-
-almLib_DEPEND_DIRS += timerLib
+DIRS = configure src
 include $(TOP)/configure/RULES_TOP

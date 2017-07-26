@@ -10,6 +10,10 @@ LIBRARY_IOC = alm
 
 LIB_SRCS += almLib.c almRegisterCmds.c
 
+LIB_SRCS_vxWorks += div64.c timer_$(T_A).c
+LIB_SRCS_RTEMS += timer_$(T_A).c
+LIB_SRCS_Linux += timer_Linux.c
+
 DBD += alm.dbd
 
 include $(TOP)/configure/RULES
