@@ -15,12 +15,13 @@ static void alm_initCallFunc(const iocshArgBuf *args)
 
 static const iocshArg alm_test_cbArg0 = {"delay",iocshArgInt};
 static const iocshArg alm_test_cbArg1 = {"num",iocshArgInt};
-static const iocshArg alm_test_cbArg2 = {"silent",iocshArgInt};
-static const iocshArg *alm_test_cbArgs[3] = {&alm_test_cbArg0,&alm_test_cbArg1,&alm_test_cbArg2};
-static const iocshFuncDef alm_test_cbFuncDef = {"alm_test_cb",3,alm_test_cbArgs};
+static const iocshArg alm_test_cbArg2 = {"overlap",iocshArgInt};
+static const iocshArg alm_test_cbArg3 = {"verbose",iocshArgInt};
+static const iocshArg *alm_test_cbArgs[4] = {&alm_test_cbArg0,&alm_test_cbArg1,&alm_test_cbArg2,&alm_test_cbArg3};
+static const iocshFuncDef alm_test_cbFuncDef = {"alm_test_cb",4,alm_test_cbArgs};
 static void alm_test_cbCallFunc(const iocshArgBuf *args)
 {
-    alm_test_cb(args[0].ival, args[1].ival, args[2].ival);
+    alm_test_cb(args[0].ival, args[1].ival, args[2].ival, args[3].ival);
 }
 
 static void almRegisterCommands(void)

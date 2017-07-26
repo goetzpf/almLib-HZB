@@ -154,7 +154,7 @@ extern alm_stamp_t alm_get_stamp(void);
 extern void alm_dump_alm(alm_t alm);
 extern void alm_dump_queue(void);
 extern void alm_print_stamp(void);
-extern void alm_test_cb(unsigned delay, unsigned num, int silent);
+extern void alm_test_cb(unsigned delay, unsigned num, int overlap, int verbose);
 
 #ifdef __cplusplus
 }

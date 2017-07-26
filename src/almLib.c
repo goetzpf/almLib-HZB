@@ -457,7 +457,7 @@ void test_cb(void *arg)
     counter--;
 }
 
-void alm_test_cb(unsigned delay, unsigned num, int silent)
+void alm_test_cb(unsigned delay, unsigned num, int overlap, int verbose)
 {
     unsigned n = num;
     struct testdata *data = calloc(num, sizeof(struct testdata));
@@ -475,13 +475,17 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
         struct testdata *x = &data[n];
         x->alm = alm_create(test_cb, x);
         x->nom_delay = (((unsigned)rand() << 16) + (unsigned)rand()) % delay;
+        if (overlap) {
+            x->start = alm_get_stamp();
+            alm_start(x->alm, x->nom_delay);
+        }
     }
-    printf("init done\n");
-    for (n = 0; n < num; n++) {
-        struct testdata *x = &data[n];
-
-        x->start = alm_get_stamp();
-        alm_start(x->alm, x->nom_delay);
+    if (!overlap) {
+        for (n = 0; n < num; n++) {
+            struct testdata *x = &data[n];
+            x->start = alm_get_stamp();
+            alm_start(x->alm, x->nom_delay);
+        }
     }
     while (counter > 0) {
         epicsThreadSleep(1.0/60);
@@ -493,7 +497,7 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
         alm_stamp_t real_delay = x->stop - x->start;
         long latency = (long long)x->stop - (long long)x->alm->time_due;
 
-        if (!silent) {
+        if (verbose) {
             printf("%03u:start="alm_fmt",due="alm_fmt",stop="alm_fmt"\n",
                 n, alm_fmt_arg(x->start),
                 alm_fmt_arg(x->alm->time_due),
@@ -505,7 +509,7 @@ void alm_test_cb(unsigned delay, unsigned num, int silent)
         max_latency = max(max_latency, latency);
     }
     printf("latency_range=[%ld..%ld]\n", min_latency, max_latency);
-    if (!silent) {
+    if (verbose) {
         alm_dump_queue();
     }
     for (n = 0; n < num; n++) {
