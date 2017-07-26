@@ -6,7 +6,7 @@
 #include <inttypes.h>
 
 #include "epicsInterrupt.h"
-#include "alm.h"
+#include "timer.h"
 
 #define CLOCKID CLOCK_REALTIME
 
@@ -24,8 +24,12 @@ static void handler(union sigval sig)
     epicsInterruptUnlock(lock_stat);
 }
 
+void timer_init(void)
+{
+}
+
 /* setup counter to go off in <delay> microseconds */
-static void setup (unsigned long delay)
+void timer_setup (unsigned long delay)
 {
     struct itimerspec its;
 
@@ -36,11 +40,10 @@ static void setup (unsigned long delay)
 
     if (timer_settime(timerid, 0, &its, NULL) < 0)
         errExit("timer_settime");
-
 }
 
 /* enable interrupts */
-static void enable (void)
+void timer_enable (void)
 {
     struct sigevent sev;
 
@@ -53,7 +56,7 @@ static void enable (void)
 }
 
 /* disable interrupts */
-static void disable (void)
+void timer_disable (void)
 {
     struct itimerspec its;
 
@@ -67,44 +70,44 @@ static void disable (void)
 }
 
 /* initialize (reset) counter and enable or disable interrupts */
-static void reset (int enable_it)
+void timer_reset (int enable_it)
 {
     if (enable_it) {
-        enable();
+        timer_enable();
     } else {
-        disable();
+        timer_disable();
     }
 }
 
 /* acknowledge an interrupt */
-static void int_ack (void)
+void timer_int_ack (void)
 {
 }
 
 /* get/set interrupt vector & level */
-static int install_int_routine (VOID_FUNC_PTR f)
+int timer_install_int_routine (VOID_FUNC_PTR f)
 {
     int_handler = f;
     return 0;
 }
 
-static unsigned get_int_level (void)
+unsigned timer_get_int_level (void)
 {
     return 0;
 }
 
-static void set_int_level (unsigned level)
+void timer_set_int_level (unsigned level)
 {
 }
 
 /* return maximum accepted delay for routine 'start' */
-static unsigned long get_max_delay (void)
+unsigned long timer_get_max_delay (void)
 {
     return ULONG_MAX;
 }
 
 /* get a timestamp in microseconds, as integral or floating point value */
-static unsigned long get_stamp (void)
+unsigned long timer_get_stamp (void)
 {
     struct timespec ts;
     uint64_t us;
@@ -113,31 +116,9 @@ static unsigned long get_stamp (void)
     return (unsigned long)(us & 0xffffffff);
 }
 
-static double get_stamp_double (void)
+double timer_get_stamp_double (void)
 {
     struct timespec ts;
     clock_gettime(CLOCKID, &ts);
     return (double)ts.tv_sec * 1000000.0 + (double)ts.tv_nsec / 1000.0;
-}
-
-alm_func_tbl_ts *alm_tbl_init(void)
-{
-    alm_func_tbl_ts *tbl = calloc(1,sizeof(alm_func_tbl_ts));
-
-    if (!tbl) {
-        printf("alm_tbl_init: out of memory\n");
-    } else {
-        tbl->setup = setup;
-        tbl->reset = reset;
-        tbl->enable = enable;
-        tbl->disable = disable;
-        tbl->int_ack = int_ack;
-        tbl->install_int_routine = install_int_routine;
-        tbl->get_int_level = get_int_level;
-        tbl->set_int_level = set_int_level;
-        tbl->get_max_delay = get_max_delay;
-        tbl->get_stamp = get_stamp;
-        tbl->get_stamp_double = get_stamp_double;
-    }
-    return tbl;
 }
