@@ -47,7 +47,7 @@
 #include <epicsMutex.h>
 #include <epicsInterrupt.h>
 
-#include "alm.h"
+#include "timer.h"
 #include "almLib.h"
 
 #include <assert.h>
@@ -86,7 +86,6 @@ static alm_init_state_t init_state = ALM_NO_INIT;
                                         /* this module's initialization state */
 static epicsMutexId alm_lock;           /* global mutex */
 static alm_t first_alm;                 /* head of alm_t object queue */
-static alm_func_tbl_ts *alm_timer;      /* low-level timer routines */
 
 static void alm_insert(alm_t what);
 static void alm_purge(void);
@@ -111,7 +110,7 @@ static void alm_int_handler()
     alm_t alm = first_alm;
     alm_stamp_t now;
 
-    alm_timer->int_ack();
+    timer_int_ack();
     now = alm_get_stamp();
     while (alm && alm->time_due <= now) {
         if (alm->active) {
@@ -149,11 +148,11 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
         if (time_due < time_now)
             time_due = time_now;
         delay = time_due - time_now;
-        max_delay = alm_timer->get_max_delay();
+        max_delay = timer_get_max_delay();
         if (delay > max_delay) delay = max_delay;
         if (delay < MIN_WAIT) delay = MIN_WAIT;
         next_due = time_now + delay;
-        alm_timer->setup(delay);
+        timer_setup(delay);
     }
     if (!from_int_handler) epicsInterruptUnlock(lock_stat);
 }
@@ -174,10 +173,9 @@ alm_stamp_t alm_get_stamp(void)
     alm_stamp_t result;
     int lock_key;
 
-    if (!alm_timer)
-        alm_timer = alm_tbl_init();
+    timer_init();
     lock_key = epicsInterruptLock();
-    now = alm_timer->get_stamp();
+    now = timer_get_stamp();
     if (now < last_time) {
         high_word += 0x100000000ull;
     }
@@ -326,35 +324,20 @@ int alm_init(int intLevel)
         goto done;
     }
     init_state = ALM_INIT_FAILED;       /* assume init failes */
-    if (!alm_timer)
-        alm_timer = alm_tbl_init();
-    if (!alm_timer) {
-        errlogSevPrintf(errlogFatal,
-            "alm_init: alm_init_symTbl failed\n");
-        goto done;
-    }
-#if 0
-    if (intLevel < 0 || intLevel > 7) {
-        errlogSevPrintf(errlogInfo,
-            "alm_init: invalid intLevel, using default\n");
-    } else {
-#endif
-    alm_timer->set_int_level(intLevel);
-#if 0
-    }
-#endif
+    timer_init();
+    timer_set_int_level(intLevel);
     alm_lock = epicsMutexCreate();
     if (!alm_lock) {
         errlogSevPrintf(errlogFatal,
             "alm_init: semMCreate failed\n");
         goto done;
     }
-    if (alm_timer->install_int_routine(alm_int_handler))
+    if (timer_install_int_routine(alm_int_handler))
     {
         errlogSevPrintf(errlogFatal, "alm_init: devConnectInterrupt failed\n");
 	goto done;
     }
-    alm_timer->enable();
+    timer_enable();
     alm_setup_alarm(alm_get_stamp() + MAX_WAIT, 0);
 
     init_state = ALM_INIT_OK;           /* success */
