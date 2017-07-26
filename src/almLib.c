@@ -119,7 +119,13 @@ static void alm_int_handler()
         }
         alm = alm->next;
     }
+    while (alm && !alm->active) {
+        alm = alm->next;
+    }
+    /* ensure that we have always at least one active timer running
+       that expires in no more than MAX_WAIT microseconds */
     if (alm) {
+        assert(alm->active);
         alm_setup_alarm(alm->time_due, 1);
     } else {
         alm_setup_alarm(now + MAX_WAIT, 1);
@@ -148,7 +154,7 @@ static void alm_setup_alarm(alm_stamp_t time_due, int from_int_handler)
         if (time_due < time_now)
             time_due = time_now;
         delay = time_due - time_now;
-        max_delay = timer_get_max_delay();
+        max_delay = min(timer_get_max_delay(), MAX_WAIT);
         if (delay > max_delay) delay = max_delay;
         if (delay < MIN_WAIT) delay = MIN_WAIT;
         next_due = time_now + delay;
