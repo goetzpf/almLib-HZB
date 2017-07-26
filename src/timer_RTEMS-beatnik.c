@@ -2,7 +2,7 @@
  *
  * Module:	Alm - High Resolution Timer and Alarm Clock Library
  *
- * Description: use timer 2 and 3 of the RTEMS beatnik BSP
+ * Description: use timer 3 via RTEMS beatnik BSP
  *
  *********************************************************************-*/
 
@@ -11,35 +11,20 @@
 
 #include "timer.h"
 
-/* we use two of the 4 timers
- * timer 2 as clock
- * timer 3 as alarm
- */
+#include "ppc_timebase_reg.c"
 
 static uint32_t alarm_timer_no= -1;
-static uint32_t clock_timer_no= -1;
 static uint32_t alarm_ticks_per_usec=1;
-
-static uint32_t clock_ticks_per_usec=1;
-static double clock_ticks_per_sec=1;
 
 static uint32_t alarm_max=0;
 static uint32_t alarm_due=0;
 
-static uint32_t clock_h=0;
-
 static void (*callback)(void*)=0;
-
-
-static void alm_clock_irq(void *dummy)
-  {
-    clock_h++;
-  }
 
 void timer_init(void)
   {
-    uint32_t i_alarm_ticks_per_sec, i_clock_ticks_per_sec;
-    double d_alarm_ticks_per_usec, d_clock_ticks_per_usec;
+    uint32_t i_alarm_ticks_per_sec;
+    double d_alarm_ticks_per_usec;
 
     static int done = 0;
 
@@ -49,7 +34,6 @@ void timer_init(void)
         return;
     }
 
-    clock_timer_no= 2;
     alarm_timer_no= 3;
 
     i_alarm_ticks_per_sec= BSP_timer_clock_get(alarm_timer_no);
@@ -57,14 +41,6 @@ void timer_init(void)
     /* alarm_ticks_per_usec is usually 133.333333 */
     alarm_ticks_per_usec= (unsigned long)d_alarm_ticks_per_usec;
     alarm_max= (unsigned long)(0xffffffff/d_alarm_ticks_per_usec) - 1;
-
-    i_clock_ticks_per_sec= BSP_timer_clock_get(clock_timer_no);
-    d_clock_ticks_per_usec= i_clock_ticks_per_sec/1.0E6;
-    clock_ticks_per_usec= (unsigned long)d_clock_ticks_per_usec;
-    clock_ticks_per_sec= i_clock_ticks_per_sec;
-
-    BSP_timer_setup(clock_timer_no, alm_clock_irq, 0, 1 /*reload*/);
-    BSP_timer_start(clock_timer_no, 0xffffffff);
   }
 
 void timer_setup(unsigned long delay)
@@ -113,26 +89,37 @@ unsigned long timer_get_max_delay(void)
     return alarm_max;
   }
 
-static unsigned long long clock_64_bit(void)
-  {
-    uint32_t h,l;
-    do
-      {
-        h= clock_h;
-        l= BSP_timer_read(clock_timer_no);
-      } while(h!=clock_h);
-    return (((unsigned long long)clock_h) << 32) + (0xffffffffu-l);
-  }
+extern unsigned int BSP_bus_frequency; /* make variable visible */
+
+static unsigned long timer_timebase_to_usec(uint64_t t)
+{
+    uint64_t delay;
+
+    /* during the calculation we need a int64 because the 
+     * result is (maybe) larger then the input value 
+     * (it takes effect if the bus frequency is above 4Mhz)
+     */
+    delay = t / (((uint64_t) BSP_bus_frequency / 4ULL) / USECS_PER_SEC);
+
+    return (unsigned long) (delay & 0xFFFFFFFF);
+} 
 
 unsigned long timer_get_stamp(void)
-  {
-    return (unsigned long)(clock_64_bit() / clock_ticks_per_usec);
-  }
+{
+    unsigned long tbu = 0, tbl = 0;
+
+    readTimeBaseReg(&tbu, &tbl);
+    return timer_timebase_to_usec((uint64_t) tbu << 32 | (uint64_t) tbl);
+}
 
 double timer_get_stamp_double(void)
-  {
-    return clock_64_bit() / clock_ticks_per_sec;
-  }
+{
+    unsigned long tbu = 0, tbl = 0;
+    readTimeBaseReg(&tbu, &tbl);
+    return (double)timer_timebase_to_usec((uint64_t) tbu << 32 |
+        (uint64_t) tbl)
+        / (double)USECS_PER_SEC;
+}
 
 /*+**************************************************************************
  *
@@ -143,13 +130,9 @@ double timer_get_stamp_double(void)
 void alm_beatnik_dump(void)
   {
     printf("alarm_timer_no: %d\n", (int)alarm_timer_no);
-    printf("clock_timer_no: %d\n", (int)clock_timer_no);
     printf("alarm_ticks_per_usec: %d\n", (unsigned)alarm_ticks_per_usec);
-    printf("clock_ticks_per_usec: %d\n", (unsigned)clock_ticks_per_usec);
-    printf("clock_ticks_per_sec: %f\n", clock_ticks_per_sec);
     printf("alarm_max: %d\n", (unsigned)alarm_max);
     printf("alarm_due: %d\n", (unsigned)alarm_due);
-    printf("clock_h: %d\n", (unsigned)clock_h);
     printf("callback: %p\n", callback);
     printf("timer_get_stamp: %lu\n", timer_get_stamp());
     printf("timer_get_stamp_double: %f\n", timer_get_stamp_double());
