@@ -2,6 +2,7 @@
 
 #include <epicsInterrupt.h> /* EPICS: epicsInterruptLock(), epicsInterruptUnlock() */
 #include <epicsTypes.h>     /* EPICS: epicsUInt64                                  */
+#include <epicsVersion.h>
 
 #include "timer.h"          /* alm_func_tbl_ts                                     */
 
@@ -11,7 +12,9 @@
  *              Local Definitions
  **************************************************************************-*/
 
+#if EPICS_VERSION==3 && EPICS_REVISION<=14
 typedef unsigned long long epicsUInt64;
+#endif
 
 #ifndef ULONGLONG_MAX
 #define ULONGLONG_MAX 0xffffffffffffffffull

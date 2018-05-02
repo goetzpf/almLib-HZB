@@ -3,6 +3,7 @@
 #include <epicsInterrupt.h>     /* epicsInterruptLock(), epicsInterruptUnlock() */
 #include <epicsTime.h>          /* epicsTimeGetCurrent()                        */
 #include <epicsTypes.h>         /* epicsUInt64                                  */
+#include <epicsVersion.h>
 /* RTEMS includes */
 #include <bsp/irq.h>            /* rtems_interrupt_catch()                      */
 
@@ -14,7 +15,7 @@
  *              Local Definitions
  **************************************************************************-*/
 
-#ifndef epicsUInt64
+#if EPICS_VERSION==3 && EPICS_REVISION<=14
 typedef unsigned long long epicsUInt64;
 #endif
 

@@ -3,6 +3,7 @@
 #include <epicsInterrupt.h>     /* epicsInterruptLock(), epicsInterruptUnlock() */
 #include <epicsTime.h>          /* epicsTimeGetCurrent()                        */
 #include <epicsTypes.h>         /* epicsUInt64                                  */
+#include <epicsVersion.h>
 /* vxworks */
 #include <intLib.h>             /* intConnect(), intEnable()                    */
 #include <vxLib.h>              /* vxTimeBaseGet(), vxTimeBaseSet()             */ 
@@ -18,7 +19,7 @@
  *              Local Definitions
  **************************************************************************-*/
 
-#ifndef epicsUInt64
+#if EPICS_VERSION==3 && EPICS_REVISION<=14
 typedef unsigned long long epicsUInt64;
 #endif
 
